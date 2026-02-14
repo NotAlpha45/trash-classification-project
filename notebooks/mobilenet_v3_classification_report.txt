@@ -3,20 +3,20 @@
 ================================================================================
 EVALUATION RESULTS
 ================================================================================
-Total Samples: 20
-Accuracy: 70.00%
-Average Inference Time: 0.31 ms/sample
+Total Samples: 3452
+Accuracy: 71.99%
+Average Inference Time: 0.24 ms/sample
 ================================================================================
 
 Detailed Classification Report:
               precision    recall  f1-score   support
 
-       Black       0.67      0.40      0.50         5
-        Blue       1.00      0.40      0.57         5
-       Green       0.62      1.00      0.77         5
-         TTR       0.71      1.00      0.83         5
+       Black     0.6226    0.5186    0.5659       700
+        Blue     0.6959    0.7993    0.7440      1091
+       Green     0.8361    0.8122    0.8240       804
+         TTR     0.7150    0.6966    0.7057       857
 
-    accuracy                           0.70        20
-   macro avg       0.75      0.70      0.67        20
-weighted avg       0.75      0.70      0.67        20
+    accuracy                         0.7199      3452
+   macro avg     0.7174    0.7067    0.7099      3452
+weighted avg     0.7184    0.7199    0.7170      3452
 
