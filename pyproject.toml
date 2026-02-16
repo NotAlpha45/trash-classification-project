@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12.4"
 dependencies = [
+    "imblearn>=0.0",
     "ipykernel>=7.2.0",
     "markupsafe==3.0.3",
     "matplotlib>=3.10.8",
