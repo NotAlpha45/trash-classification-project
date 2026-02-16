@@ -5,7 +5,7 @@ EVALUATION RESULTS
 ================================================================================
 Total Samples: 3452
 Accuracy: 72.16%
-Average Inference Time: 0.46 ms/sample
+Average Inference Time: 0.26 ms/sample
 ================================================================================
 
 Detailed Classification Report:
