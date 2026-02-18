@@ -1,4 +1,6 @@
 /venv
 /models
 /dataset
+/dataset_text
 AGENT_INSTRUCTIONS.md
+/text_models
