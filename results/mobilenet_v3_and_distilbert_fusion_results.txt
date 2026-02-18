@@ -1,0 +1,84 @@
+================================================================================
+MULTIMODAL FUSION RESULTS (α=0.60)
+================================================================================
+
+📸 IMAGE MODEL ONLY:
+  Accuracy:      0.7216 (72.16%)
+  F1 (Macro):    0.7150
+  F1 (Weighted): 0.7208
+  Inference Time: 0.27 ms/sample
+
+📝 TEXT MODEL ONLY:
+  Accuracy:      0.7723 (77.23%)
+  F1 (Macro):    0.7711
+  F1 (Weighted): 0.7735
+  Inference Time: 1.15 ms/sample
+
+🔥 FUSED MODEL (Image + Text):
+  Accuracy:      0.8216 (82.16%)
+  F1 (Macro):    0.8177
+  F1 (Weighted): 0.8212
+  Inference Time: 1.43 ms/sample
+    - Image:     0.27 ms
+    - Text:      1.15 ms
+    - Fusion:    0.00 ms
+
+📊 PERFORMANCE COMPARISON:
+  Best Single Model: 0.7723
+  Fused Model:       0.8216
+  Improvement:       +4.92%
+
+⚡ SPEED COMPARISON:
+  Fastest Single Model: Image (0.27 ms/sample)
+  Fused Model:          1.43 ms/sample
+  Slowdown:             +420.2%
+
+
+================================================================================
+PER-CLASS PERFORMANCE COMPARISON
+================================================================================
+
+IMAGE MODEL:
+--------------------------------------------------------------------------------
+              precision    recall  f1-score   support
+
+       Black     0.6075    0.5571    0.5812       700
+        Blue     0.7008    0.7773    0.7371      1091
+       Green     0.8558    0.8122    0.8334       804
+         TTR     0.7168    0.7001    0.7084       857
+
+    accuracy                         0.7216      3452
+   macro avg     0.7202    0.7117    0.7150      3452
+weighted avg     0.7220    0.7216    0.7208      3452
+
+
+TEXT MODEL:
+--------------------------------------------------------------------------------
+              precision    recall  f1-score   support
+
+       Black     0.6162    0.6857    0.6491       700
+        Blue     0.7618    0.7388    0.7501      1091
+       Green     0.8679    0.8993    0.8833       804
+         TTR     0.8402    0.7666    0.8017       857
+
+    accuracy                         0.7723      3452
+   macro avg     0.7715    0.7726    0.7711      3452
+weighted avg     0.7764    0.7723    0.7735      3452
+
+
+FUSED MODEL:
+--------------------------------------------------------------------------------
+              precision    recall  f1-score   support
+
+       Black     0.7257    0.7029    0.7141       700
+        Blue     0.7913    0.8552    0.8220      1091
+       Green     0.9189    0.9154    0.9171       804
+         TTR     0.8501    0.7876    0.8177       857
+
+    accuracy                         0.8216      3452
+   macro avg     0.8215    0.8153    0.8177      3452
+weighted avg     0.8223    0.8216    0.8212      3452
+
+
+🎯 Performance Gain:
+  ✅ Fusion improves accuracy by 4.92% over best single model
