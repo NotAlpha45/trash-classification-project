@@ -203,47 +203,22 @@ trash-classification-project/
 ### Training the Models
 
 #### 1. Image Model (MobileNetV3)
+
 ```bash
 jupyter notebook notebooks/image_model_experiment_mobilenetv3.ipynb
 ```
 
-**Pipeline:**
-1. Data Loading & EDA (Sections 1-3)
-2. Data Preprocessing (Section 4)
-3. Model Setup (Section 5)
-4. Training (Sections 6-7)
-5. Visualization (Section 8)
-6. Inference (Section 9)
-7. Evaluation (Section 10)
-
 #### 2. Text Model (DistilBERT)
+
 ```bash
 jupyter notebook notebooks/distilbert_text_model.ipynb
 ```
 
-**Pipeline:**
-1. Import Libraries & Setup
-2. Load Text Dataset (CSV files)
-3. Create Dataset & DataLoader
-4. Load Pretrained DistilBERT
-5. Training Configuration & Functions
-6. Training Loop (15 epochs with early stopping)
-7. Evaluation & Metrics
-8. Inference Functions
-
 #### 3. Multimodal Fusion
+
 ```bash
 jupyter notebook notebooks/multimodal_fusion.ipynb
 ```
-
-**Pipeline:**
-1. Load Both Trained Models
-2. Create Multimodal Dataset
-3. Implement Fusion Functions
-4. Run Test Set Evaluation
-5. Performance Comparison (Image vs Text vs Fused)
-6. Alpha Sensitivity Analysis
-7. Generate Visualizations
 
 ### Loading Pre-trained Models
 
@@ -338,6 +313,7 @@ print(f"Fused prediction: {result['fused_prediction']}")
 | Alpha (α) | 0.5 (default, tunable) |
 | Alpha Range Tested | [0.0, 0.1, 0.2, ..., 1.0] |
 | Evaluation Metric | Accuracy & F1 (weighted) |
+| Secondary Metric | Inference Time |
 
 **Fusion Formula:**
 ```
@@ -462,7 +438,7 @@ All notebooks generate detailed visualizations saved to respective model directo
 - Confusion matrix heatmap
 - Sample predictions from test set
 
-**Multimodal Fusion:** (`text_models/`)
+**Multimodal Fusion:** (`figures/`)
 - `multimodal_confusion_matrices.png` - Side-by-side comparison
 - `multimodal_performance_comparison.png` - Bar chart comparison
 - `alpha_sensitivity_analysis.png` - Fusion weight optimization
