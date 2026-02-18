@@ -193,7 +193,6 @@ trash-classification-project/
 │   ├── distilbert_best.pth
 │   ├── distilbert_epoch_*.pth
 │   └── multimodal_*.png                          # Fusion visualizations
-├── AGENT_INSTRUCTIONS.md                          # Development guidelines
 ├── pyproject.toml                                 # Project dependencies
 └── README.md                                      # This file
 ```
