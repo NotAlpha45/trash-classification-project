@@ -310,7 +310,7 @@ print(f"Fused prediction: {result['fused_prediction']}")
 | Parameter | Value |
 |-----------|-------|
 | Fusion Method | Weighted logit combination |
-| Alpha (α) | 0.5 (default, tunable) |
+| Alpha (α) | 0.60 (optimal from sensitivity analysis) |
 | Alpha Range Tested | [0.0, 0.1, 0.2, ..., 1.0] |
 | Evaluation Metric | Accuracy & F1 (weighted) |
 | Secondary Metric | Inference Time |
@@ -384,45 +384,62 @@ The multimodal fusion notebook generates comprehensive comparisons:
 
 ## 🏆 Results
 
-*Results will be populated after training all three models*
-
 ### Test Set Performance
 
 | Model | Accuracy | F1 (Macro) | F1 (Weighted) | Inference Time |
 |-------|----------|------------|---------------|----------------|
-| **Image Only** (MobileNetV3) | TBD | TBD | TBD | TBD ms/sample |
-| **Text Only** (DistilBERT) | TBD | TBD | TBD | TBD ms/sample |
-| **Multimodal Fusion** (α=0.5) | TBD | TBD | TBD | TBD ms/sample |
+| **Image Only** (MobileNetV3) | 72.16% | 0.7150 | 0.7208 | 0.27 ms/sample |
+| **Text Only** (DistilBERT) | 77.23% | 0.7711 | 0.7735 | 1.15 ms/sample |
+| **Multimodal Fusion** (α=0.60) | **82.16%** | **0.8177** | **0.8212** | 1.43 ms/sample |
 
-### Per-Class Performance
+### Per-Class Performance (F1-Score)
 
-**Image Model:**
-- Black: TBD
-- Blue: TBD
-- Green: TBD
-- TTR: TBD
+| Class | Image Model | Text Model | Fused Model |
+|-------|-------------|------------|-------------|
+| **Black** | 0.5812 | 0.6491 | **0.7141** |
+| **Blue** | 0.7371 | 0.7501 | **0.8220** |
+| **Green** | 0.8334 | 0.8833 | **0.9171** |
+| **TTR** | 0.7084 | 0.8017 | **0.8177** |
 
-**Text Model:**
-- Black: TBD
-- Blue: TBD
-- Green: TBD
-- TTR: TBD
+### Detailed Per-Class Metrics
 
-**Fused Model:**
-- Black: TBD
-- Blue: TBD
-- Green: TBD
-- TTR: TBD
+**Image Model (MobileNetV3):**
+- Black: Precision=0.6075, Recall=0.5571, F1=0.5812
+- Blue: Precision=0.7008, Recall=0.7773, F1=0.7371
+- Green: Precision=0.8558, Recall=0.8122, F1=0.8334
+- TTR: Precision=0.7168, Recall=0.7001, F1=0.7084
+
+**Text Model (DistilBERT):**
+- Black: Precision=0.6162, Recall=0.6857, F1=0.6491
+- Blue: Precision=0.7618, Recall=0.7388, F1=0.7501
+- Green: Precision=0.8679, Recall=0.8993, F1=0.8833
+- TTR: Precision=0.8402, Recall=0.7666, F1=0.8017
+
+**Fused Model (α=0.60):**
+- Black: Precision=0.7257, Recall=0.7029, F1=0.7141
+- Blue: Precision=0.7913, Recall=0.8552, F1=0.8220
+- Green: Precision=0.9189, Recall=0.9154, F1=0.9171
+- TTR: Precision=0.8501, Recall=0.7876, F1=0.8177
 
 ### Key Findings
 
-- **Best Single Model:** TBD (Image or Text)
-- **Fusion Improvement:** TBD% over best single model
-- **Optimal Alpha:** TBD (from sensitivity analysis)
-- **Trade-offs:** 
-  - Image model: Strong visual feature learning but slower inference
-  - Text model: Fast inference but limited to filename patterns
-  - Fusion: Best accuracy at cost of running both models
+- **Best Single Model:** Text (DistilBERT) at 77.23% accuracy
+- **Fusion Improvement:** **+4.92%** over best single model (77.23% → 82.16%)
+- **Optimal Alpha:** **α = 0.60** (60% text weight, 40% image weight)
+- **Overall Winner:** Multimodal fusion achieves **82.16% accuracy**, outperforming both individual models
+
+### Performance Trade-offs
+
+**Accuracy vs. Speed:**
+- **Image model:** Fastest inference (0.27 ms/sample) but lowest accuracy (72.16%)
+- **Text model:** Moderate speed (1.15 ms/sample) with good accuracy (77.23%)
+- **Fusion:** Best accuracy (82.16%) at 1.43 ms/sample (5.3× slower than image-only, 1.2× slower than text-only)
+
+**Key Insights:**
+1. **Complementary Strengths:** Fusion leverages visual patterns (image) and naming conventions (text)
+2. **Class Performance:** Green bins achieve highest F1 (0.9171), Black bins most challenging (0.7141)
+3. **Practical Deployment:** For real-time applications, text model offers best accuracy/speed balance (77.23% at 1.15 ms)
+4. **Maximum Accuracy:** Fusion model recommended when accuracy is critical (+4.92% gain worth the 1.43 ms latency)
 
 ### Visualizations Generated
 
