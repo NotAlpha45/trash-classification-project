@@ -4,3 +4,7 @@
 /dataset_text
 AGENT_INSTRUCTIONS.md
 /text_models
+chroma_db/
+results/phase2/
+figures/phase2/
+src/phase2/__pycache__/
