@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from .data_utils import build_records_from_csv, resolve_image_path
     from .db_client import get_class_counts, get_image_collection, get_persistent_client, get_text_collection
     from .embedders import ImageEmbedder, TextEmbedder
+    from .gpu_utils import clear_gpu_memory, get_device, print_device_info
     from .evaluation import compute_metrics, evaluate_variant, load_results, save_results
     from .evaluation import (
         save_alpha_sweep_csv,
@@ -36,6 +37,9 @@ _SYMBOL_TO_MODULE = {
     "build_records_from_csv": ".data_utils",
     "ImageEmbedder": ".embedders",
     "TextEmbedder": ".embedders",
+    "get_device": ".gpu_utils",
+    "print_device_info": ".gpu_utils",
+    "clear_gpu_memory": ".gpu_utils",
     "get_persistent_client": ".db_client",
     "get_image_collection": ".db_client",
     "get_text_collection": ".db_client",
@@ -84,6 +88,9 @@ __all__ = [
     "build_records_from_csv",
     "ImageEmbedder",
     "TextEmbedder",
+    "get_device",
+    "print_device_info",
+    "clear_gpu_memory",
     "get_persistent_client",
     "get_image_collection",
     "get_text_collection",
