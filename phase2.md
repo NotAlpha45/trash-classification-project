@@ -97,9 +97,12 @@ Add `chroma_db/` and `results/phase2/` to `.gitignore`.
 - Save results to `results/phase2/imbalance_results.pkl`
 
 **`04_continual_learning.ipynb`**
-- Simulate progressive DB growth (10% → 100% of training set, in 10% steps)
-- At each step, evaluate `local_dnds` on the full test set
-- Save results to `results/phase2/continual_learning_results.pkl`
+- Uses a **separate isolated ChromaDB instance** at `./chroma_db_continual` — do NOT reuse the main `./chroma_db`
+- Rebuilds `chroma_db_continual` from scratch on each run for a clean slate
+- Simulates progressive DB growth (10% → 100% of training set, in 10% steps)
+- The final 100% step must use the **complete training set** — enforce with an assertion on `collection.count()`
+- At each step, evaluates `local_dnds` on the full test set
+- Saves results to `results/phase2/continual_learning_results.pkl`
 
 **`05_results_visualization.ipynb`**
 - Load all `.pkl` and `.csv` files from `results/phase2/`
@@ -292,26 +295,80 @@ This directly demonstrates the "every new instance empowers the system" claim.
 
 ## Evaluation Metrics
 
-Compute for every variant and every imbalance ratio:
+**These must be identical to Phase 1** to enable direct comparison. Phase 1 reports the following metrics — compute all of them for every Phase 2 variant and every imbalance ratio:
 
 ```python
 from sklearn.metrics import (
     accuracy_score,
     f1_score,
+    precision_score,
+    recall_score,
     classification_report,
     confusion_matrix
 )
+import time
+
+# Measure inference latency
+start = time.perf_counter()
+# ... run inference over test set ...
+elapsed_ms = (time.perf_counter() - start) / len(test_dataset) * 1000  # ms/sample
 
 metrics = {
+    # Overall
     "accuracy": accuracy_score(y_true, y_pred),
     "macro_f1": f1_score(y_true, y_pred, average="macro"),
     "weighted_f1": f1_score(y_true, y_pred, average="weighted"),
-    "per_class_f1": f1_score(y_true, y_pred, average=None, labels=CLASS_NAMES),
-    "report": classification_report(y_true, y_pred, target_names=CLASS_NAMES)
+    "inference_time_ms": elapsed_ms,
+
+    # Per-class F1 (matches Phase 1 per-class F1 table)
+    "per_class_f1": {
+        cls: score for cls, score in zip(
+            CLASS_NAMES,
+            f1_score(y_true, y_pred, average=None, labels=CLASS_NAMES)
+        )
+    },
+
+    # Per-class Precision (Phase 1 reports these explicitly)
+    "per_class_precision": {
+        cls: score for cls, score in zip(
+            CLASS_NAMES,
+            precision_score(y_true, y_pred, average=None, labels=CLASS_NAMES)
+        )
+    },
+
+    # Per-class Recall (Phase 1 reports these explicitly)
+    "per_class_recall": {
+        cls: score for cls, score in zip(
+            CLASS_NAMES,
+            recall_score(y_true, y_pred, average=None, labels=CLASS_NAMES)
+        )
+    },
+
+    # Full report string (for printing)
+    "classification_report": classification_report(
+        y_true, y_pred, target_names=CLASS_NAMES
+    ),
+
+    # Confusion matrix (for visualization)
+    "confusion_matrix": confusion_matrix(
+        y_true, y_pred, labels=CLASS_NAMES
+    ).tolist()  # convert to list for JSON serialization
 }
 ```
 
-Also record inference latency (ms/sample) for each variant using `time.perf_counter()`.
+The `05_results_summary.ipynb` must reproduce a table in this exact format (mirroring Phase 1's results table in the README):
+
+```
+Per-Class Performance (F1-Score)
+| Class  | Phase 1 Image | Phase 1 Text | Phase 1 Fused | Best RAC Variant |
+|--------|--------------|--------------|----------------|------------------|
+| Black  |    0.5812    |    0.6491    |     0.7141     |      X.XXXX      |
+| Blue   |    0.7371    |    0.7501    |     0.8220     |      X.XXXX      |
+| Green  |    0.8334    |    0.8833    |     0.9171     |      X.XXXX      |
+| TTR    |    0.7084    |    0.8017    |     0.8177     |      X.XXXX      |
+```
+
+Phase 1 baseline values are hardcoded from the README and must appear verbatim in this table.
 
 ---
 
@@ -542,10 +599,14 @@ trash-classification-project/
 
 **`04_continual_learning.ipynb`**
 - Imports `db_client`, `scoring`, `evaluation`, `visualization`
-- Progressively grows DB from 10% → 100% of training set in 10% increments
-- At each step evaluates `local_dnds` on full test set
+- Uses a **separate, isolated ChromaDB instance** at `./chroma_db_continual` — completely independent from the main `./chroma_db` used by notebooks 02 and 03. This prevents partial population from corrupting the main evaluation DB.
+- At the start of each run, deletes and recreates `chroma_db_continual` from scratch to ensure a clean slate
+- Progressively adds training data in 10% increments (10%, 20%, ..., 100%)
+- The **final step (100%) must use the complete training set** — assert `collection.count() == len(full_train_dataset)` before evaluating the last step to guarantee this
+- At each step, evaluates `local_dnds` on the full test set
 - Saves results to `results/phase2/continual_learning_results.json`
 - Generates: `continual_learning_curve.png`
+- Add `chroma_db_continual/` to `.gitignore`
 
 **`05_results_summary.ipynb`**
 - Imports `evaluation`, `visualization`
