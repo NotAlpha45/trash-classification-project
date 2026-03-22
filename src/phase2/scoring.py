@@ -106,7 +106,8 @@ def _fuse_scores(
 ) -> str:
     """Fuse modality scores and return argmax label."""
     fused = {
-        label: alpha * image_scores.get(label, 0.0) + (1.0 - alpha) * text_scores.get(label, 0.0)
+        label: alpha * image_scores.get(label, 0.0)
+        + (1.0 - alpha) * text_scores.get(label, 0.0)
         for label in class_names
     }
     return max(fused, key=fused.get)
@@ -129,13 +130,22 @@ def majority_vote(
     image_results = kwargs.get("raw_image_results")
     text_results = kwargs.get("raw_text_results")
     if image_results is None or text_results is None:
-        image_results, text_results = _safe_query(image_collection, text_collection, query_image, query_text, k_density)
+        image_results, text_results = _safe_query(
+            image_collection, text_collection, query_image, query_text, k_density
+        )
 
-    image_votes = Counter((m or {}).get("label") for m in (image_results.get("metadatas") or [[]])[0][:k_vote])
-    text_votes = Counter((m or {}).get("label") for m in (text_results.get("metadatas") or [[]])[0][:k_vote])
+    image_votes = Counter(
+        (m or {}).get("label")
+        for m in (image_results.get("metadatas") or [[]])[0][:k_vote]
+    )
+    text_votes = Counter(
+        (m or {}).get("label")
+        for m in (text_results.get("metadatas") or [[]])[0][:k_vote]
+    )
 
     score_table = {
-        label: alpha * image_votes.get(label, 0) + (1.0 - alpha) * text_votes.get(label, 0)
+        label: alpha * image_votes.get(label, 0)
+        + (1.0 - alpha) * text_votes.get(label, 0)
         for label in class_names
     }
     return max(score_table, key=score_table.get)
@@ -159,7 +169,9 @@ def idw(
     image_results = kwargs.get("raw_image_results")
     text_results = kwargs.get("raw_text_results")
     if image_results is None or text_results is None:
-        image_results, text_results = _safe_query(image_collection, text_collection, query_image, query_text, k_density)
+        image_results, text_results = _safe_query(
+            image_collection, text_collection, query_image, query_text, k_density
+        )
 
     image_scores = _accumulate_idw(image_results, class_names, k_vote, epsilon)
     text_scores = _accumulate_idw(text_results, class_names, k_vote, epsilon)
@@ -184,19 +196,31 @@ def global_dnds(
     image_results = kwargs.get("raw_image_results")
     text_results = kwargs.get("raw_text_results")
     if image_results is None or text_results is None:
-        image_results, text_results = _safe_query(image_collection, text_collection, query_image, query_text, k_density)
+        image_results, text_results = _safe_query(
+            image_collection, text_collection, query_image, query_text, k_density
+        )
 
-    image_counts = kwargs.get("image_class_counts") or get_class_counts(image_collection)
+    image_counts = kwargs.get("image_class_counts") or get_class_counts(
+        image_collection
+    )
     text_counts = kwargs.get("text_class_counts") or get_class_counts(text_collection)
 
     image_total = max(1, sum(image_counts.values()))
     text_total = max(1, sum(text_counts.values()))
 
-    image_density = {label: image_counts.get(label, 0) / image_total for label in class_names}
-    text_density = {label: text_counts.get(label, 0) / text_total for label in class_names}
+    image_density = {
+        label: image_counts.get(label, 0) / image_total for label in class_names
+    }
+    text_density = {
+        label: text_counts.get(label, 0) / text_total for label in class_names
+    }
 
-    image_scores = _global_dnds_modality(image_results, class_names, k_vote, epsilon, image_density)
-    text_scores = _global_dnds_modality(text_results, class_names, k_vote, epsilon, text_density)
+    image_scores = _global_dnds_modality(
+        image_results, class_names, k_vote, epsilon, image_density
+    )
+    text_scores = _global_dnds_modality(
+        text_results, class_names, k_vote, epsilon, text_density
+    )
     return _fuse_scores(image_scores, text_scores, class_names, alpha)
 
 
@@ -218,10 +242,16 @@ def local_dnds(
     image_results = kwargs.get("raw_image_results")
     text_results = kwargs.get("raw_text_results")
     if image_results is None or text_results is None:
-        image_results, text_results = _safe_query(image_collection, text_collection, query_image, query_text, k_density)
+        image_results, text_results = _safe_query(
+            image_collection, text_collection, query_image, query_text, k_density
+        )
 
-    image_scores = _local_dnds_modality(image_results, class_names, k_vote, k_density, epsilon)
-    text_scores = _local_dnds_modality(text_results, class_names, k_vote, k_density, epsilon)
+    image_scores = _local_dnds_modality(
+        image_results, class_names, k_vote, k_density, epsilon
+    )
+    text_scores = _local_dnds_modality(
+        text_results, class_names, k_vote, k_density, epsilon
+    )
     return _fuse_scores(image_scores, text_scores, class_names, alpha)
 
 
@@ -256,7 +286,13 @@ def traditional(
     image_pil = Image.fromarray(query_image.astype(np.uint8)).convert("RGB")
     image_tensor = transform(image_pil).unsqueeze(0)
 
-    tokenized = tokenizer(query_text, truncation=True, padding="max_length", max_length=64, return_tensors="pt")
+    tokenized = tokenizer(
+        query_text,
+        truncation=True,
+        padding="max_length",
+        max_length=64,
+        return_tensors="pt",
+    )
 
     with torch.no_grad():
         image_out = image_model(image_tensor)
