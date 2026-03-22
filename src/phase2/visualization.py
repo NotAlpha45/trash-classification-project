@@ -58,15 +58,64 @@ def plot_minority_f1_vs_imbalance(imbalance_results: dict[str, Any], save_path: 
 
 
 def plot_alpha_sensitivity(alpha_results: dict[str, Any], save_path: str):
-    """Plot macro F1 over alpha sweep for local DNDS."""
+    """Plot macro F1 over alpha sweep.
+
+    Supports either:
+    - legacy shape: {"alphas": [...], "macro_f1": [...]} for local DNDS only
+    - extended shape: {
+        "local_dnds": {"alphas": [...], "macro_f1": [...]},
+        "kde_dnds": {"alphas": [...], "macro_f1": [...]},
+      }
+    """
     _ensure_dir(str(Path(save_path).parent))
-    alphas = alpha_results.get("alphas", [])
-    values = alpha_results.get("macro_f1", [])
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    if "local_dnds" in alpha_results or "kde_dnds" in alpha_results:
+        local = alpha_results.get("local_dnds", {})
+        kde = alpha_results.get("kde_dnds", {})
+        if local:
+            ax.plot(
+                local.get("alphas", []),
+                local.get("macro_f1", []),
+                marker="o",
+                linewidth=2,
+                label="local_dnds",
+            )
+        if kde:
+            ax.plot(
+                kde.get("alphas", []),
+                kde.get("macro_f1", []),
+                marker="s",
+                linewidth=2,
+                label="kde_dnds",
+            )
+        ax.legend(loc="best")
+        ax.set_title("Alpha Sensitivity (local_dnds vs kde_dnds)")
+    else:
+        alphas = alpha_results.get("alphas", [])
+        values = alpha_results.get("macro_f1", [])
+        ax.plot(alphas, values, marker="o", linewidth=2)
+        ax.set_title("Alpha Sensitivity (local_dnds)")
+
+    ax.set_xlabel("alpha")
+    ax.set_ylabel("Macro F1")
+    ax.set_ylim(0, 1)
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(save_path, dpi=300)
+    return fig
+
+
+def plot_kde_bandwidth_ablation(kde_bandwidth_results: dict[str, Any], save_path: str):
+    """Plot macro F1 across KDE bandwidth values."""
+    _ensure_dir(str(Path(save_path).parent))
+    bandwidths = kde_bandwidth_results.get("bandwidths", [])
+    macro_f1 = kde_bandwidth_results.get("macro_f1", [])
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(alphas, values, marker="o", linewidth=2)
-    ax.set_title("Alpha Sensitivity (local_dnds)")
-    ax.set_xlabel("alpha")
+    ax.plot(bandwidths, macro_f1, marker="o", linewidth=2)
+    ax.set_title("KDE Bandwidth Ablation (kde_dnds)")
+    ax.set_xlabel("bandwidth (h)")
     ax.set_ylabel("Macro F1")
     ax.set_ylim(0, 1)
     ax.grid(alpha=0.3)
@@ -99,13 +148,18 @@ def plot_confusion_matrices(
     save_path: str,
     variants: list[str] | None = None,
 ):
-    """Create a 2x2 confusion matrix grid for selected variants."""
+    """Create a confusion-matrix grid for selected variants."""
     _ensure_dir(str(Path(save_path).parent))
     if variants is None:
         variants = ["majority_vote", "idw", "global_dnds", "local_dnds"]
 
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    for ax, variant in zip(axes.flatten(), variants):
+    n = max(1, len(variants))
+    ncols = 3 if n > 4 else 2
+    nrows = int(np.ceil(n / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 5 * nrows))
+    axes_arr = np.atleast_1d(axes).ravel()
+
+    for ax, variant in zip(axes_arr, variants):
         matrix = evaluation_results.get("variants", {}).get(variant, {}).get("confusion_matrix")
         if matrix is None:
             matrix = np.zeros((len(class_names), len(class_names)))
@@ -115,6 +169,9 @@ def plot_confusion_matrices(
         ax.set_ylabel("True")
         ax.set_xticklabels(class_names, rotation=45, ha="right")
         ax.set_yticklabels(class_names, rotation=0)
+
+    for ax in axes_arr[len(variants):]:
+        ax.axis("off")
 
     fig.tight_layout()
     fig.savefig(save_path, dpi=300)

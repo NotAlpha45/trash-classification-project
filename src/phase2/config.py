@@ -14,6 +14,8 @@ PHASE2_CONFIG: dict[str, Any] = {
     "imbalance_ratios": [10, 50, 100],
     "batch_size": 100,
     "epsilon": 1e-6,
+    "kde_bandwidth": 0.5,
+    "kde_bandwidth_sweep": [0.1, 0.25, 0.5, 1.0],
     "majority_threshold": 1.15,
     "db_path": "./chroma_db",
     "figures_path": "./figures/phase2",

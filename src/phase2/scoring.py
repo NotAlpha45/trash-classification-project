@@ -255,6 +255,92 @@ def local_dnds(
     return _fuse_scores(image_scores, text_scores, class_names, alpha)
 
 
+def _kde_density_by_class(
+    results: dict[str, Any],
+    class_names: list[str],
+    bandwidth: float,
+) -> dict[str, float]:
+    """Compute Gaussian-kernel class densities from a result distance list."""
+    out = {label: 0.0 for label in class_names}
+    metadatas = (results.get("metadatas") or [[]])[0]
+    distances = (results.get("distances") or [[]])[0]
+    if bandwidth <= 0:
+        return out
+
+    denom = 2.0 * (bandwidth**2)
+    for meta, dist in zip(metadatas, distances):
+        label = (meta or {}).get("label")
+        if label in out:
+            d = float(dist)
+            out[label] += float(np.exp(-(d * d) / denom))
+    return out
+
+
+def kde_dnds(
+    query_image: np.ndarray,
+    query_text: str,
+    image_collection,
+    text_collection,
+    config: dict,
+    alpha: float = 0.5,
+    **kwargs,
+) -> str:
+    """Predict class using KDE-smoothed density normalization.
+
+    This variant keeps the IDW top-k numerator and replaces the local density term
+    with a Gaussian kernel density estimate computed over all DB distances.
+    """
+    k_vote = int(config["k_vote"])
+    k_density = int(config["K_density"])
+    epsilon = float(config["epsilon"])
+    class_names = list(config["class_names"])
+    bandwidth = float(kwargs.get("bandwidth", config.get("kde_bandwidth", 0.5)))
+
+    image_results = kwargs.get("raw_image_results")
+    text_results = kwargs.get("raw_text_results")
+    if image_results is None or text_results is None:
+        image_results, text_results = _safe_query(
+            image_collection, text_collection, query_image, query_text, k_density
+        )
+
+    image_raw = _accumulate_idw(image_results, class_names, k_vote, epsilon)
+    text_raw = _accumulate_idw(text_results, class_names, k_vote, epsilon)
+
+    # Query full collections once per sample to estimate smooth class densities.
+    try:
+        image_all = image_collection.query(
+            query_images=[query_image],
+            n_results=max(1, int(image_collection.count())),
+            include=["metadatas", "distances"],
+        )
+        text_all = text_collection.query(
+            query_texts=[query_text],
+            n_results=max(1, int(text_collection.count())),
+            include=["metadatas", "distances"],
+        )
+    except Exception as exc:
+        raise RuntimeError(f"Failed full-distance query for kde_dnds: {exc}") from exc
+
+    image_density = _kde_density_by_class(image_all, class_names, bandwidth)
+    text_density = _kde_density_by_class(text_all, class_names, bandwidth)
+
+    image_scores = {
+        label: (
+            (image_raw[label] / image_density[label])
+            if image_density[label] > 0
+            else 0.0
+        )
+        for label in class_names
+    }
+    text_scores = {
+        label: (
+            (text_raw[label] / text_density[label]) if text_density[label] > 0 else 0.0
+        )
+        for label in class_names
+    }
+    return _fuse_scores(image_scores, text_scores, class_names, alpha)
+
+
 def traditional(
     query_image: np.ndarray,
     query_text: str,
@@ -300,7 +386,9 @@ def traditional(
     use_autocast = use_half_precision and model_device.type == "cuda"
 
     with torch.no_grad():
-        with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=use_autocast):
+        with torch.autocast(
+            device_type="cuda", dtype=torch.float16, enabled=use_autocast
+        ):
             image_out = image_model(image_tensor)
             text_out = text_model(**tokenized)
 

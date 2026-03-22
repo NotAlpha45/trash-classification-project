@@ -26,12 +26,13 @@ if TYPE_CHECKING:
         save_predictions_csv,
     )
     from .imbalance import infer_class_groups, simulate_imbalance
-    from .scoring import global_dnds, idw, local_dnds, majority_vote, traditional
+    from .scoring import global_dnds, idw, kde_dnds, local_dnds, majority_vote, traditional
     from .traditional import load_phase1_traditional_components
     from .visualization import (
         plot_alpha_sensitivity,
         plot_confusion_matrices,
         plot_continual_learning_curve,
+        plot_kde_bandwidth_ablation,
         plot_minority_f1_vs_imbalance,
         plot_phase2_vs_phase1,
         plot_scoring_comparison,
@@ -60,6 +61,7 @@ _SYMBOL_TO_MODULE = {
     "idw": ".scoring",
     "global_dnds": ".scoring",
     "local_dnds": ".scoring",
+    "kde_dnds": ".scoring",
     "traditional": ".scoring",
     "compute_metrics": ".evaluation",
     "evaluate_variant": ".evaluation",
@@ -77,6 +79,7 @@ _SYMBOL_TO_MODULE = {
     "plot_minority_f1_vs_imbalance": ".visualization",
     "plot_alpha_sensitivity": ".visualization",
     "plot_continual_learning_curve": ".visualization",
+    "plot_kde_bandwidth_ablation": ".visualization",
     "plot_confusion_matrices": ".visualization",
     "plot_phase2_vs_phase1": ".visualization",
 }
@@ -115,6 +118,7 @@ __all__ = [
     "idw",
     "global_dnds",
     "local_dnds",
+    "kde_dnds",
     "traditional",
     "compute_metrics",
     "evaluate_variant",
@@ -132,6 +136,7 @@ __all__ = [
     "plot_minority_f1_vs_imbalance",
     "plot_alpha_sensitivity",
     "plot_continual_learning_curve",
+    "plot_kde_bandwidth_ablation",
     "plot_confusion_matrices",
     "plot_phase2_vs_phase1",
 ]
