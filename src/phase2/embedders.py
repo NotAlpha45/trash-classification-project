@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from PIL import Image
-from sentence_transformers import SentenceTransformer
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 
 class ImageEmbedder:
@@ -66,7 +69,7 @@ class ImageEmbedder:
 class TextEmbedder:
     """Sentence-transformer text embedding wrapper with singleton model caching."""
 
-    _model: SentenceTransformer | None = None
+    _model: Any | None = None
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
         """Initialize sentence transformer lazily.
@@ -74,6 +77,14 @@ class TextEmbedder:
         Args:
             model_name: Sentence-transformer model identifier.
         """
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ModuleNotFoundError as exc:
+            raise ModuleNotFoundError(
+                "sentence-transformers is required for TextEmbedder. "
+                "Install it with `uv add sentence-transformers>=3.0.0`."
+            ) from exc
+
         if TextEmbedder._model is None:
             TextEmbedder._model = SentenceTransformer(model_name)
         self.model_name = model_name
