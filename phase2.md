@@ -83,16 +83,16 @@ Add `chroma_db/` and `results/phase2/` to `.gitignore`.
 
 **`02_scoring_variants.ipynb`**
 - Load the test set
-- Implement all 5 scoring variant functions (majority_vote, idw, global_dnds, local_dnds, traditional)
+- Implement all 6 scoring variant functions (majority_vote, idw, global_dnds, local_dnds, kde_dnds, traditional)
 - Run all variants on the full test set (no imbalance simulation here)
-- Run alpha sensitivity sweep for `local_dnds`
+- Run alpha sensitivity sweep for `local_dnds` and `kde_dnds`
 - Save predictions and metrics to `results/phase2/scoring_variants_predictions.pkl` and `metrics_summary.csv`
 - Print the final summary results table
 
 **`03_imbalance_experiment.ipynb`**
 - Load test set
 - Implement imbalance simulation via DB result post-filtering
-- Run all 5 variants at ratios `[10, 50, 100]`
+- Run all 6 variants at ratios `[10, 50, 100]`
 - Focus metric: per-class F1, especially TTR and Green
 - Save results to `results/phase2/imbalance_results.pkl`
 
@@ -221,6 +221,40 @@ For each class c:
 
 **Important**: Use `K=50` for density estimation and `k=10` for the inner vote sum. The top-K is the density window; the top-k is the classification neighborhood. Both come from the same query (just use the first k of the K results for scoring).
 
+### KDE-DNDS — Gaussian Kernel Density Variant
+
+This is the smoothed, full-database refinement of `local_dnds`. Instead of a hard cutoff at K neighbors, every point in the database contributes to the density estimate for class `c`, weighted by a Gaussian kernel over distance. This removes the sensitivity to the K hyperparameter and produces a smoother density surface.
+
+**Step 2b — KDE density estimate per class:**
+
+```
+For each class c:
+    # Gaussian kernel density over ALL database points of class c
+    # h = bandwidth hyperparameter (default: h = 0.5, ablate over [0.1, 0.25, 0.5, 1.0])
+    ρ_c^KDE(q) = Σ_{i: y_i = c} exp(-d(q, x_i)² / (2h²))
+
+    # Inverse-distance weighted sum over top-k neighbors of class c (same k=10 as local_dnds)
+    neighbors_c = [i for i in top_k_neighbors if label_i == c]
+    raw_score = sum(1 / (d_i + ε) for i in neighbors_c)
+
+    # KDE-normalized score
+    if ρ_c^KDE == 0:
+        S_kde(c) = 0
+    else:
+        S_kde(c) = raw_score / ρ_c^KDE
+```
+
+**Implementation note on cost:** Computing `ρ_c^KDE` requires iterating over all DB entries per class. Use ChromaDB's `.get()` with `where={"label": c}` and `include=["embeddings"]` to fetch all embeddings of class `c`, then compute the kernel distances against the query embedding in NumPy — do NOT re-query ChromaDB for each sample. Cache the class embeddings in memory at the start of the evaluation loop since they are fixed for the full test set evaluation.
+
+**Bandwidth ablation:** In `02_evaluation.ipynb`, run `kde_dnds` over `h ∈ [0.1, 0.25, 0.5, 1.0]` and report macro F1 for each. Add this as a dedicated plot: `kde_bandwidth_ablation.png`. Use the best `h` for all other experiments. Add `"kde_bandwidth": 0.5` and `"kde_bandwidth_sweep": [0.1, 0.25, 0.5, 1.0]` to the CONFIG dict.
+
+**Step 3 for KDE-DNDS:** Fusion is identical to local_dnds:
+
+```
+S_final(c) = α * S_kde^image(c) + (1 - α) * S_kde^text(c)
+ŷ = argmax_c S_final(c)
+```
+
 ### Step 3: Fuse image and text scores
 
 ```
@@ -256,14 +290,15 @@ Add a check: if `image_collection.count() == len(train_dataset)`, skip re-popula
 
 ### Section 2 — Baseline Comparisons
 
-Implement all 5 scoring variants as separate functions so they can be swapped in easily:
+Implement all 6 scoring variants as separate functions so they can be swapped in easily:
 
 | Variant | Description |
 |---|---|
 | `majority_vote` | Top-k neighbors, class with most votes wins |
 | `idw` | Inverse distance weighting, no imbalance correction |
 | `global_dnds` | Density correction using global class counts in DB (`N_c / N`) |
-| `local_dnds` | **Our method** — density correction using local K-neighborhood |
+| `local_dnds` | Density correction using local K-neighborhood hard cutoff |
+| `kde_dnds` | **Our best method** — smooth Gaussian kernel density estimation over all DB points |
 | `traditional` | Load Phase 1 fusion model checkpoints, run inference (for comparison) |
 
 For the traditional baseline, load the saved checkpoints from Phase 1:
@@ -277,7 +312,7 @@ text_checkpoint = torch.load("text_models/distilbert_best.pth")
 For the imbalance experiment, **do not retrain or rebuild the full DB**. Instead, simulate imbalance at query time by sub-sampling the DB results:
 
 - For a given imbalance ratio `r:1` (majority:minority), limit the maximum neighbors returned per majority class to `r * (K / num_minority_classes)` by post-filtering the ChromaDB results before scoring.
-- Run all 5 variants at ratios: `[10, 50, 100]`
+- Run all 6 variants at ratios: `[10, 50, 100]`
 - The minority classes are: `TTR` and `Green` (lower frequency in real Calgary waste)
 - The majority classes are: `Black` and `Blue`
 
@@ -376,12 +411,13 @@ Phase 1 baseline values are hardcoded from the README and must appear verbatim i
 
 Generate and save all plots to `figures/phase2/`:
 
-1. **`scoring_comparison.png`** — Bar chart: Macro F1 for all 5 variants (no imbalance)
-2. **`minority_f1_vs_imbalance.png`** — Line chart: TTR F1 and Green F1 vs. imbalance ratio, for all 5 variants (the headline result)
-3. **`alpha_sensitivity.png`** — Line chart: Macro F1 vs. α for `local_dnds`
-4. **`continual_learning_curve.png`** — Line chart: Macro F1 vs. DB size %
-5. **`confusion_matrices_phase2.png`** — 2×2 grid of confusion matrices: majority_vote | idw | global_dnds | local_dnds
-6. **`phase2_vs_phase1.png`** — Side-by-side bar: Phase 1 fusion (82.16% baseline) vs. best RAC variant
+1. **`scoring_comparison.png`** — Bar chart: Macro F1 for all 6 variants (no imbalance)
+2. **`minority_f1_vs_imbalance.png`** — Line chart: TTR F1 and Green F1 vs. imbalance ratio, for all 6 variants (the headline result)
+3. **`alpha_sensitivity.png`** — Line chart: Macro F1 vs. α for both `local_dnds` and `kde_dnds` on the same axes
+4. **`kde_bandwidth_ablation.png`** — Line chart: Macro F1 vs. bandwidth `h` for `kde_dnds`
+5. **`continual_learning_curve.png`** — Line chart: Macro F1 vs. DB size %
+6. **`confusion_matrices_phase2.png`** — 2×3 grid of confusion matrices: majority_vote | idw | global_dnds | local_dnds | kde_dnds | traditional
+7. **`phase2_vs_phase1.png`** — Side-by-side bar: Phase 1 fusion (82.16% baseline) vs. best RAC variant
 
 ---
 
@@ -453,12 +489,14 @@ And that `src/phase2/__init__.py` exists (even if empty). This lets `uv run` res
 ```python
 CONFIG = {
     "k_vote": 10,          # classification neighborhood size
-    "K_density": 50,       # density estimation neighborhood size
+    "K_density": 50,       # density estimation neighborhood size (local_dnds)
     "alpha": 0.5,          # default image-text fusion weight
     "alpha_sweep": [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0],
     "imbalance_ratios": [10, 50, 100],
     "batch_size": 100,     # DB population batch size
     "epsilon": 1e-6,       # distance smoothing term
+    "kde_bandwidth": 0.5,  # default Gaussian kernel bandwidth for kde_dnds
+    "kde_bandwidth_sweep": [0.1, 0.25, 0.5, 1.0],  # ablation values
     "db_path": "./chroma_db",
     "figures_path": "./figures/phase2",
     "class_names": ["Black", "Blue", "Green", "TTR"],
@@ -474,18 +512,21 @@ CONFIG = {
 At the end of the notebook, print a clean summary table:
 
 ```
-============================================================
+==================================================================
 PHASE 2 RAC EXPERIMENT — RESULTS SUMMARY
-============================================================
+==================================================================
 Variant              | Accuracy | Macro F1 | TTR F1 | Latency
----------------------|----------|----------|--------|--------
-Majority Vote        |   XX.X%  |  X.XXX   | X.XXX  | X.XX ms
-IDW                  |   XX.X%  |  X.XXX   | X.XXX  | X.XX ms
-Global DNDS          |   XX.X%  |  X.XXX   | X.XXX  | X.XX ms
-Local DNDS (ours)    |   XX.X%  |  X.XXX   | X.XXX  | X.XX ms
-Phase 1 Traditional  |   82.16% |  0.8177  | 0.8177 | 1.43 ms
-============================================================
-Best alpha (local DNDS): X.X
+---------------------|----------|----------|--------|----------
+Majority Vote        |   XX.X%  |  X.XXX   | X.XXX  |  X.XX ms
+IDW                  |   XX.X%  |  X.XXX   | X.XXX  |  X.XX ms
+Global DNDS          |   XX.X%  |  X.XXX   | X.XXX  |  X.XX ms
+Local DNDS           |   XX.X%  |  X.XXX   | X.XXX  |  X.XX ms
+KDE-DNDS (ours)      |   XX.X%  |  X.XXX   | X.XXX  |  X.XX ms
+Phase 1 Traditional  |   82.16% |  0.8177  | 0.8177 |  1.43 ms
+==================================================================
+Best alpha (Local DNDS): X.X
+Best alpha (KDE-DNDS):   X.X
+Best KDE bandwidth (h):  X.XX
 Best imbalance correction gain on TTR F1 at 100:1 ratio: +X.XX
 ```
 
@@ -558,9 +599,10 @@ trash-classification-project/
       alpha: float = 0.5
   ) -> str:   # returns predicted class label
   ```
-- Functions: `majority_vote`, `idw`, `global_dnds`, `local_dnds`, `traditional`
+- Functions: `majority_vote`, `idw`, `global_dnds`, `local_dnds`, `kde_dnds`, `traditional`
+- `kde_dnds` additionally accepts `image_class_embeddings` and `text_class_embeddings` as kwargs — pre-fetched dicts of `{label: np.ndarray}` cached before the evaluation loop to avoid re-fetching from ChromaDB on every query
 - `traditional` additionally accepts `image_model`, `text_model`, `tokenizer`, `transform` as kwargs
-- All variants use the same `CONFIG` dict for `k_vote`, `K_density`, `epsilon`
+- All variants use the same `CONFIG` dict for `k_vote`, `K_density`, `epsilon`, `kde_bandwidth`
 
 **`evaluation.py`**
 - `evaluate_variant(score_fn, test_dataset, ...) -> dict` — runs inference over the full test set and returns the metrics dict
@@ -586,10 +628,12 @@ trash-classification-project/
 
 **`02_evaluation.ipynb`**
 - Imports `scoring`, `evaluation`, `visualization`
-- Runs all 5 variants on the full test set (no imbalance)
-- Runs alpha sensitivity sweep for `local_dnds`
+- Pre-fetches all class embeddings from both collections and caches them in memory (required for `kde_dnds`)
+- Runs all 6 variants on the full test set (no imbalance)
+- Runs alpha sensitivity sweep for `local_dnds` and `kde_dnds`
+- Runs KDE bandwidth ablation for `kde_dnds` over `h ∈ [0.1, 0.25, 0.5, 1.0]`
 - Saves results to `results/phase2/evaluation_results.json`
-- Generates: `scoring_comparison.png`, `alpha_sensitivity.png`, `confusion_matrices_phase2.png`, `phase2_vs_phase1.png`
+- Generates: `scoring_comparison.png`, `alpha_sensitivity.png`, `confusion_matrices_phase2.png`, `phase2_vs_phase1.png`, `kde_bandwidth_ablation.png`
 
 **`03_imbalance_experiment.ipynb`**
 - Imports `scoring`, `evaluation`, `imbalance`, `visualization`
