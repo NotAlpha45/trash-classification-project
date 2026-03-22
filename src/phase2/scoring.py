@@ -274,6 +274,7 @@ def traditional(
     text_model = kwargs.get("text_model")
     tokenizer = kwargs.get("tokenizer")
     transform: Callable | None = kwargs.get("transform")
+    use_half_precision = bool(kwargs.get("use_half_precision", False))
 
     if any(item is None for item in (image_model, text_model, tokenizer, transform)):
         raise ValueError(
@@ -296,9 +297,12 @@ def traditional(
     )
     tokenized = {key: value.to(model_device) for key, value in tokenized.items()}
 
+    use_autocast = use_half_precision and model_device.type == "cuda"
+
     with torch.no_grad():
-        image_out = image_model(image_tensor)
-        text_out = text_model(**tokenized)
+        with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=use_autocast):
+            image_out = image_model(image_tensor)
+            text_out = text_model(**tokenized)
 
         image_logits = image_out.logits if hasattr(image_out, "logits") else image_out
         text_logits = text_out.logits if hasattr(text_out, "logits") else text_out

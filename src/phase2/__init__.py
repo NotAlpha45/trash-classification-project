@@ -8,7 +8,15 @@ if TYPE_CHECKING:
     from .data_utils import build_records_from_csv, resolve_image_path
     from .db_client import get_class_counts, get_image_collection, get_persistent_client, get_text_collection
     from .embedders import ImageEmbedder, TextEmbedder
-    from .gpu_utils import clear_gpu_memory, get_device, print_device_info
+    from .gpu_utils import (
+        clear_gpu_memory,
+        get_device,
+        get_gpu_memory_stats,
+        maybe_periodic_gpu_maintenance,
+        print_device_info,
+        print_gpu_memory,
+        should_use_half_precision,
+    )
     from .evaluation import compute_metrics, evaluate_variant, load_results, save_results
     from .evaluation import (
         save_alpha_sweep_csv,
@@ -38,8 +46,12 @@ _SYMBOL_TO_MODULE = {
     "ImageEmbedder": ".embedders",
     "TextEmbedder": ".embedders",
     "get_device": ".gpu_utils",
+    "get_gpu_memory_stats": ".gpu_utils",
     "print_device_info": ".gpu_utils",
+    "print_gpu_memory": ".gpu_utils",
     "clear_gpu_memory": ".gpu_utils",
+    "should_use_half_precision": ".gpu_utils",
+    "maybe_periodic_gpu_maintenance": ".gpu_utils",
     "get_persistent_client": ".db_client",
     "get_image_collection": ".db_client",
     "get_text_collection": ".db_client",
@@ -89,8 +101,12 @@ __all__ = [
     "ImageEmbedder",
     "TextEmbedder",
     "get_device",
+    "get_gpu_memory_stats",
     "print_device_info",
+    "print_gpu_memory",
     "clear_gpu_memory",
+    "should_use_half_precision",
+    "maybe_periodic_gpu_maintenance",
     "get_persistent_client",
     "get_image_collection",
     "get_text_collection",

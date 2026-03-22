@@ -11,6 +11,8 @@ import torchvision.transforms as transforms
 import torchvision.models as models
 from transformers import DistilBertForSequenceClassification, DistilBertTokenizerFast
 
+from .gpu_utils import should_use_half_precision
+
 
 def _load_state_dict(payload: dict[str, Any] | Any) -> dict[str, Any]:
     """Extract model state dict from either full checkpoint payload or raw state dict."""
@@ -26,6 +28,7 @@ def load_phase1_traditional_components(
     text_checkpoint_path: str | Path,
     num_classes: int,
     device: str | torch.device = "cpu",
+    use_half_precision: bool = False,
 ) -> dict[str, Any]:
     """Load Phase 1 image/text models, tokenizer, and image transform.
 
@@ -43,6 +46,7 @@ def load_phase1_traditional_components(
     """
     image_checkpoint_path = Path(image_checkpoint_path)
     text_checkpoint_path = Path(text_checkpoint_path)
+    device = torch.device(device)
 
     image_model = models.mobilenet_v3_large(weights=None)
     first_layer = image_model.classifier[0]
@@ -74,6 +78,11 @@ def load_phase1_traditional_components(
     text_model = text_model.to(device)
     text_model.eval()
 
+    half_enabled = should_use_half_precision(device, use_half_precision)
+    if half_enabled:
+        image_model.half()
+        text_model.half()
+
     tokenizer = DistilBertTokenizerFast.from_pretrained("distilbert-base-uncased")
     image_transform = transforms.Compose(
         [
@@ -88,4 +97,5 @@ def load_phase1_traditional_components(
         "text_model": text_model,
         "tokenizer": tokenizer,
         "transform": image_transform,
+        "use_half_precision": half_enabled,
     }

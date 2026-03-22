@@ -20,6 +20,8 @@ from sklearn.metrics import (
 )
 from tqdm.auto import tqdm
 
+from .gpu_utils import maybe_periodic_gpu_maintenance
+
 
 def load_image_as_numpy(image_path: str) -> np.ndarray:
     """Load an image file as an RGB ``np.uint8`` array.
@@ -85,6 +87,8 @@ def evaluate_variant(
     config: dict,
     alpha: float | None = None,
     score_kwargs: dict[str, Any] | None = None,
+    cleanup_interval: int = 0,
+    memory_log_interval: int = 0,
 ) -> dict[str, Any]:
     """Evaluate a scoring function on a full test dataset.
 
@@ -109,7 +113,17 @@ def evaluate_variant(
 
     active_alpha = config["alpha"] if alpha is None else alpha
 
-    for sample in tqdm(test_samples, desc=f"Evaluating {score_fn.__name__}"):
+    model_device = None
+    if score_kwargs and "image_model" in score_kwargs:
+        try:
+            model_device = next(score_kwargs["image_model"].parameters()).device
+        except Exception:
+            model_device = None
+
+    for sample_index, sample in enumerate(
+        tqdm(test_samples, desc=f"Evaluating {score_fn.__name__}"),
+        start=1,
+    ):
         image_path = sample["image_path"]
         text = sample["text"]
         label = sample["label"]
@@ -130,6 +144,14 @@ def evaluate_variant(
         y_true.append(label)
         y_pred.append(pred)
         latencies_ms.append(elapsed_ms)
+
+        maybe_periodic_gpu_maintenance(
+            step_index=sample_index,
+            cleanup_interval=cleanup_interval,
+            memory_log_interval=memory_log_interval,
+            device=model_device,
+            log_prefix=score_fn.__name__,
+        )
 
     metrics = compute_metrics(y_true, y_pred, config["class_names"])
     mean_latency_ms = float(np.mean(latencies_ms) if latencies_ms else 0.0)
