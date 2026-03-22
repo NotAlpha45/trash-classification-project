@@ -4,6 +4,7 @@ from importlib import import_module
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from .config import PHASE2_CONFIG, get_phase2_config
     from .data_utils import build_records_from_csv, resolve_image_path
     from .db_client import get_class_counts, get_image_collection, get_persistent_client, get_text_collection
     from .embedders import ImageEmbedder, TextEmbedder
@@ -21,6 +22,8 @@ if TYPE_CHECKING:
 
 
 _SYMBOL_TO_MODULE = {
+    "PHASE2_CONFIG": ".config",
+    "get_phase2_config": ".config",
     "resolve_image_path": ".data_utils",
     "build_records_from_csv": ".data_utils",
     "ImageEmbedder": ".embedders",
@@ -60,6 +63,8 @@ def __getattr__(name: str):
     return value
 
 __all__ = [
+    "PHASE2_CONFIG",
+    "get_phase2_config",
     "resolve_image_path",
     "build_records_from_csv",
     "ImageEmbedder",
