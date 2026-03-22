@@ -9,7 +9,14 @@ from typing import Any, Callable
 
 import numpy as np
 from PIL import Image
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+)
 from tqdm.auto import tqdm
 
 
@@ -46,9 +53,26 @@ def compute_metrics(y_true: list[str], y_pred: list[str], class_names: list[str]
             label: float(score)
             for label, score in zip(class_names, per_class_f1_array.tolist(), strict=False)
         },
+        "per_class_precision": {
+            label: float(score)
+            for label, score in zip(
+                class_names,
+                np.atleast_1d(precision_score(y_true, y_pred, average=None, labels=class_names, zero_division=0)).tolist(),
+                strict=False,
+            )
+        },
+        "per_class_recall": {
+            label: float(score)
+            for label, score in zip(
+                class_names,
+                np.atleast_1d(recall_score(y_true, y_pred, average=None, labels=class_names, zero_division=0)).tolist(),
+                strict=False,
+            )
+        },
         "confusion_matrix": confusion_matrix(y_true, y_pred, labels=class_names).tolist(),
-        "report": classification_report(y_true, y_pred, target_names=class_names, zero_division=0),
+        "classification_report": classification_report(y_true, y_pred, target_names=class_names, zero_division=0),
     }
+    metrics["report"] = metrics["classification_report"]
     return metrics
 
 
@@ -107,7 +131,9 @@ def evaluate_variant(
         latencies_ms.append(elapsed_ms)
 
     metrics = compute_metrics(y_true, y_pred, config["class_names"])
-    metrics["latency_ms_per_sample"] = float(np.mean(latencies_ms) if latencies_ms else 0.0)
+    mean_latency_ms = float(np.mean(latencies_ms) if latencies_ms else 0.0)
+    metrics["inference_time_ms"] = mean_latency_ms
+    metrics["latency_ms_per_sample"] = mean_latency_ms
     metrics["y_true"] = y_true
     metrics["y_pred"] = y_pred
     metrics["alpha"] = float(active_alpha)
