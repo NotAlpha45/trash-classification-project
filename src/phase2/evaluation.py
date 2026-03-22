@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import time
 from pathlib import Path
@@ -166,3 +167,153 @@ def load_results(path: str) -> dict[str, Any]:
     target = Path(path)
     with target.open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def save_metrics_summary_csv(variant_results: dict[str, dict[str, Any]], path: str) -> None:
+    """Save per-variant metric summary to CSV."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    class_names: list[str] = []
+    for metrics in variant_results.values():
+        keys = list((metrics.get("per_class_f1") or {}).keys())
+        if keys:
+            class_names = keys
+            break
+
+    headers = [
+        "variant",
+        "accuracy",
+        "macro_f1",
+        "weighted_f1",
+        "inference_time_ms",
+    ]
+    headers.extend([f"f1_{name}" for name in class_names])
+    headers.extend([f"precision_{name}" for name in class_names])
+    headers.extend([f"recall_{name}" for name in class_names])
+
+    with target.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=headers)
+        writer.writeheader()
+
+        for variant_name, metrics in variant_results.items():
+            row = {
+                "variant": variant_name,
+                "accuracy": metrics.get("accuracy", 0.0),
+                "macro_f1": metrics.get("macro_f1", 0.0),
+                "weighted_f1": metrics.get("weighted_f1", 0.0),
+                "inference_time_ms": metrics.get("inference_time_ms", metrics.get("latency_ms_per_sample", 0.0)),
+            }
+
+            per_f1 = metrics.get("per_class_f1", {})
+            per_p = metrics.get("per_class_precision", {})
+            per_r = metrics.get("per_class_recall", {})
+            for class_name in class_names:
+                row[f"f1_{class_name}"] = per_f1.get(class_name, 0.0)
+                row[f"precision_{class_name}"] = per_p.get(class_name, 0.0)
+                row[f"recall_{class_name}"] = per_r.get(class_name, 0.0)
+
+            writer.writerow(row)
+
+
+def save_alpha_sweep_csv(alpha_sweep: dict[str, Any], path: str) -> None:
+    """Save alpha sweep values to CSV."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    alphas = alpha_sweep.get("alphas", [])
+    macro_f1 = alpha_sweep.get("macro_f1", [])
+
+    with target.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["alpha", "macro_f1"])
+        for alpha, score in zip(alphas, macro_f1):
+            writer.writerow([alpha, score])
+
+
+def save_predictions_csv(variant_results: dict[str, dict[str, Any]], path: str) -> None:
+    """Save per-sample predictions for each variant to CSV."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    with target.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["variant", "sample_index", "y_true", "y_pred"])
+
+        for variant_name, metrics in variant_results.items():
+            y_true = metrics.get("y_true", [])
+            y_pred = metrics.get("y_pred", [])
+            for index, (truth, pred) in enumerate(zip(y_true, y_pred)):
+                writer.writerow([variant_name, index, truth, pred])
+
+
+def save_imbalance_summary_csv(imbalance_results: dict[str, Any], path: str) -> None:
+    """Save imbalance experiment summary metrics to CSV."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    with target.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(
+            [
+                "ratio",
+                "variant",
+                "accuracy",
+                "macro_f1",
+                "weighted_f1",
+                "green_f1",
+                "ttr_f1",
+            ]
+        )
+
+        ratios = imbalance_results.get("ratios", [])
+        variants = imbalance_results.get("variants", {})
+        for ratio in ratios:
+            ratio_key = str(ratio)
+            for variant_name, by_ratio in variants.items():
+                metrics = by_ratio.get(ratio_key, {})
+                per_f1 = metrics.get("per_class_f1", {})
+                writer.writerow(
+                    [
+                        ratio,
+                        variant_name,
+                        metrics.get("accuracy", 0.0),
+                        metrics.get("macro_f1", 0.0),
+                        metrics.get("weighted_f1", 0.0),
+                        per_f1.get("Green", 0.0),
+                        per_f1.get("TTR", 0.0),
+                    ]
+                )
+
+
+def save_continual_summary_csv(continual_results: dict[str, Any], path: str) -> None:
+    """Save continual-learning curve values to CSV."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    with target.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(
+            [
+                "db_size_percent",
+                "db_count",
+                "accuracy",
+                "macro_f1",
+                "weighted_f1",
+                "inference_time_ms",
+            ]
+        )
+
+        steps = continual_results.get("steps", {})
+        for pct in continual_results.get("db_size_percent", []):
+            step = steps.get(str(pct), {})
+            writer.writerow(
+                [
+                    pct,
+                    step.get("db_count", 0),
+                    step.get("accuracy", 0.0),
+                    step.get("macro_f1", 0.0),
+                    step.get("weighted_f1", 0.0),
+                    step.get("inference_time_ms", 0.0),
+                ]
+            )

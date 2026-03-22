@@ -14,11 +14,10 @@ PHASE2_CONFIG: dict[str, Any] = {
     "imbalance_ratios": [10, 50, 100],
     "batch_size": 100,
     "epsilon": 1e-6,
+    "majority_threshold": 1.15,
     "db_path": "./chroma_db",
     "figures_path": "./figures/phase2",
     "class_names": ["Black", "Blue", "Green", "TTR"],
-    "minority_classes": ["TTR", "Green"],
-    "majority_classes": ["Black", "Blue"],
 }
 
 

@@ -6,6 +6,48 @@ from collections import defaultdict
 from typing import Any
 
 
+def infer_class_groups(
+    class_counts: dict[str, int],
+    threshold: float = 1.15,
+) -> tuple[list[str], list[str]]:
+    """Infer majority and minority classes from class-count statistics.
+
+    A class is marked as majority when its count is at least
+    ``threshold * mean(other_class_counts)``. Remaining classes are minority.
+
+    Args:
+        class_counts: Mapping of class label to count.
+        threshold: Relative threshold against the mean of remaining classes.
+
+    Returns:
+        Tuple of ``(majority_classes, minority_classes)``.
+    """
+    if not class_counts:
+        return [], []
+
+    ordered = sorted(class_counts.items(), key=lambda item: (-item[1], item[0]))
+    labels = [label for label, _ in ordered]
+
+    majority_classes: list[str] = []
+    for label, count in ordered:
+        other_counts = [value for other_label, value in ordered if other_label != label]
+        if not other_counts:
+            continue
+
+        other_mean = sum(other_counts) / len(other_counts)
+        if count >= threshold * other_mean:
+            majority_classes.append(label)
+
+    # Keep the split usable for imbalance simulation.
+    if not majority_classes:
+        majority_classes = [labels[0]]
+    if len(majority_classes) == len(labels):
+        majority_classes = [labels[0]]
+
+    minority_classes = [label for label in labels if label not in majority_classes]
+    return majority_classes, minority_classes
+
+
 def simulate_imbalance(
     results: dict[str, Any],
     majority_classes: list[str],

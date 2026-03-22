@@ -9,8 +9,16 @@ if TYPE_CHECKING:
     from .db_client import get_class_counts, get_image_collection, get_persistent_client, get_text_collection
     from .embedders import ImageEmbedder, TextEmbedder
     from .evaluation import compute_metrics, evaluate_variant, load_results, save_results
-    from .imbalance import simulate_imbalance
+    from .evaluation import (
+        save_alpha_sweep_csv,
+        save_continual_summary_csv,
+        save_imbalance_summary_csv,
+        save_metrics_summary_csv,
+        save_predictions_csv,
+    )
+    from .imbalance import infer_class_groups, simulate_imbalance
     from .scoring import global_dnds, idw, local_dnds, majority_vote, traditional
+    from .traditional import load_phase1_traditional_components
     from .visualization import (
         plot_alpha_sensitivity,
         plot_confusion_matrices,
@@ -41,7 +49,14 @@ _SYMBOL_TO_MODULE = {
     "evaluate_variant": ".evaluation",
     "save_results": ".evaluation",
     "load_results": ".evaluation",
+    "save_metrics_summary_csv": ".evaluation",
+    "save_alpha_sweep_csv": ".evaluation",
+    "save_predictions_csv": ".evaluation",
+    "save_imbalance_summary_csv": ".evaluation",
+    "save_continual_summary_csv": ".evaluation",
+    "infer_class_groups": ".imbalance",
     "simulate_imbalance": ".imbalance",
+    "load_phase1_traditional_components": ".traditional",
     "plot_scoring_comparison": ".visualization",
     "plot_minority_f1_vs_imbalance": ".visualization",
     "plot_alpha_sensitivity": ".visualization",
@@ -82,7 +97,14 @@ __all__ = [
     "evaluate_variant",
     "save_results",
     "load_results",
+    "save_metrics_summary_csv",
+    "save_alpha_sweep_csv",
+    "save_predictions_csv",
+    "save_imbalance_summary_csv",
+    "save_continual_summary_csv",
+    "infer_class_groups",
     "simulate_imbalance",
+    "load_phase1_traditional_components",
     "plot_scoring_comparison",
     "plot_minority_f1_vs_imbalance",
     "plot_alpha_sensitivity",

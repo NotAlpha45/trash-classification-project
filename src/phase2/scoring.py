@@ -284,7 +284,8 @@ def traditional(
     from PIL import Image
 
     image_pil = Image.fromarray(query_image.astype(np.uint8)).convert("RGB")
-    image_tensor = transform(image_pil).unsqueeze(0)
+    model_device = next(image_model.parameters()).device
+    image_tensor = transform(image_pil).unsqueeze(0).to(model_device)
 
     tokenized = tokenizer(
         query_text,
@@ -293,6 +294,7 @@ def traditional(
         max_length=64,
         return_tensors="pt",
     )
+    tokenized = {key: value.to(model_device) for key, value in tokenized.items()}
 
     with torch.no_grad():
         image_out = image_model(image_tensor)
