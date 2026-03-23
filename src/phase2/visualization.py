@@ -128,10 +128,18 @@ def plot_continual_learning_curve(continual_results: dict[str, Any], save_path: 
     """Plot macro F1 as database size increases."""
     _ensure_dir(str(Path(save_path).parent))
     percents = continual_results.get("db_size_percent", [])
-    macro_f1 = continual_results.get("macro_f1", [])
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(percents, macro_f1, marker="o", linewidth=2)
+    variants = continual_results.get("variants")
+    if isinstance(variants, dict) and variants:
+        for variant_name, payload in variants.items():
+            macro_f1 = (payload or {}).get("macro_f1", [])
+            ax.plot(percents, macro_f1, marker="o", linewidth=2, label=variant_name)
+        ax.legend(loc="best")
+    else:
+        macro_f1 = continual_results.get("macro_f1", [])
+        ax.plot(percents, macro_f1, marker="o", linewidth=2)
+
     ax.set_title("Continual Learning Curve")
     ax.set_xlabel("DB Size (%)")
     ax.set_ylabel("Macro F1")

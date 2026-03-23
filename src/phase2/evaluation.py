@@ -315,6 +315,37 @@ def save_continual_summary_csv(continual_results: dict[str, Any], path: str) -> 
 
     with target.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
+
+        variants = continual_results.get("variants")
+        if isinstance(variants, dict) and variants:
+            writer.writerow(
+                [
+                    "db_size_percent",
+                    "variant",
+                    "db_count",
+                    "accuracy",
+                    "macro_f1",
+                    "weighted_f1",
+                    "inference_time_ms",
+                ]
+            )
+            for pct in continual_results.get("db_size_percent", []):
+                pct_key = str(pct)
+                for variant_name, variant_payload in variants.items():
+                    step = (variant_payload or {}).get("steps", {}).get(pct_key, {})
+                    writer.writerow(
+                        [
+                            pct,
+                            variant_name,
+                            step.get("db_count", 0),
+                            step.get("accuracy", 0.0),
+                            step.get("macro_f1", 0.0),
+                            step.get("weighted_f1", 0.0),
+                            step.get("inference_time_ms", 0.0),
+                        ]
+                    )
+            return
+
         writer.writerow(
             [
                 "db_size_percent",
