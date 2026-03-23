@@ -67,7 +67,9 @@ def simulate_imbalance(
     """
     metadatas = (results.get("metadatas") or [[]])[0]
     distances = (results.get("distances") or [[]])[0]
-    ids = (results.get("ids") or [[]])[0] if "ids" in results else [None] * len(metadatas)
+    ids = (
+        (results.get("ids") or [[]])[0] if "ids" in results else [None] * len(metadatas)
+    )
 
     k_density = len(metadatas)
     minority_denominator = max(1, len(minority_classes))
