@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import pandas as pd
 
 
 def resolve_image_path(split_dir: Path, label: str, raw_name: str) -> Path:
@@ -62,11 +63,12 @@ def build_records_from_csv(
     Raises:
         ValueError: If required CSV columns are missing.
     """
-    import pandas as pd
 
     df = pd.read_csv(csv_path)
     if not {text_column, label_column}.issubset(df.columns):
-        raise ValueError(f"{csv_path.name} must contain columns: {text_column}, {label_column}")
+        raise ValueError(
+            f"{csv_path.name} must contain columns: {text_column}, {label_column}"
+        )
 
     records: list[dict[str, Any]] = []
     missing_examples: list[str] = []
