@@ -200,10 +200,13 @@ def global_dnds(
             image_collection, text_collection, query_image, query_text, k_density
         )
 
-    image_counts = kwargs.get("image_class_counts") or get_class_counts(
-        image_collection
+    # Use the counts from the results themselves to avoid counting the full DB, when we are simulating with small subsets. In a real implementation, these would be replaced with explicit counts from the DB.
+    image_counts = Counter(
+        (m or {}).get("label") for m in (image_results.get("metadatas") or [[]])[0]
     )
-    text_counts = kwargs.get("text_class_counts") or get_class_counts(text_collection)
+    text_counts = Counter(
+        (m or {}).get("label") for m in (text_results.get("metadatas") or [[]])[0]
+    )
 
     image_total = max(1, sum(image_counts.values()))
     text_total = max(1, sum(text_counts.values()))

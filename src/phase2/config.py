@@ -11,7 +11,7 @@ PHASE2_CONFIG: dict[str, Any] = {
     "K_density": 50,
     "alpha": 0.5,
     "alpha_sweep": [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0],
-    "imbalance_ratios": [10, 50, 100],
+    "imbalance_ratios": [2, 3, 5, 10],
     "batch_size": 100,
     "epsilon": 1e-6,
     "kde_bandwidth": 0.5,
