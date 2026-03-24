@@ -71,17 +71,24 @@ def simulate_imbalance(
         (results.get("ids") or [[]])[0] if "ids" in results else [None] * len(metadatas)
     )
 
-    k_density = len(metadatas)
-    minority_denominator = max(1, len(minority_classes))
-    majority_cap = int(ratio * (k_density / minority_denominator))
+    # Count minority neighbors actually present in results
+    minority_count = sum(
+        1 for m in metadatas if (m or {}).get("label") in minority_classes
+    )
 
-    kept_indices: list[int] = []
-    kept_by_class: dict[str, int] = defaultdict(int)
+    # Cap each majority class to: ratio * (minority_count / num_minority_classes)
+    # This enforces the majority:minority ratio relative to actual minority presence
+    per_majority_cap = max(
+        1, int(ratio * minority_count / max(1, len(minority_classes)))
+    )
+
+    kept_indices = []
+    kept_by_class = defaultdict(int)
 
     for idx, meta in enumerate(metadatas):
         label = (meta or {}).get("label")
         if label in majority_classes:
-            if kept_by_class[label] < majority_cap:
+            if kept_by_class[label] < per_majority_cap:
                 kept_indices.append(idx)
                 kept_by_class[label] += 1
         else:
