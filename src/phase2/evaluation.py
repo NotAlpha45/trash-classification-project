@@ -89,6 +89,10 @@ def evaluate_variant(
     score_kwargs: dict[str, Any] | None = None,
     cleanup_interval: int = 0,
     memory_log_interval: int = 0,
+    show_progress: bool = True,
+    run_label: str | None = None,
+    progress_log_path: str | None = None,
+    progress_log_interval: int = 0,
 ) -> dict[str, Any]:
     """Evaluate a scoring function on a full test dataset.
 
@@ -100,6 +104,10 @@ def evaluate_variant(
         config: Experiment configuration dictionary.
         alpha: Optional fusion weight override.
         score_kwargs: Additional keyword args passed to ``score_fn``.
+        show_progress: If ``True``, show tqdm progress in notebook output.
+        run_label: Optional label used in progress/log messages.
+        progress_log_path: Optional path to append textual progress logs.
+        progress_log_interval: Interval (in samples) for file progress logging.
 
     Returns:
         Dictionary with metrics, latency, and predictions.
@@ -112,6 +120,8 @@ def evaluate_variant(
     latencies_ms: list[float] = []
 
     active_alpha = config["alpha"] if alpha is None else alpha
+    active_label = run_label or score_fn.__name__
+    total_samples = len(test_samples)
 
     model_device = None
     if score_kwargs and "image_model" in score_kwargs:
@@ -120,10 +130,8 @@ def evaluate_variant(
         except Exception:
             model_device = None
 
-    for sample_index, sample in enumerate(
-        tqdm(test_samples, desc=f"Evaluating {score_fn.__name__}"),
-        start=1,
-    ):
+    iterator = tqdm(test_samples, desc=f"Evaluating {active_label}") if show_progress else test_samples
+    for sample_index, sample in enumerate(iterator, start=1):
         image_path = sample["image_path"]
         text = sample["text"]
         label = sample["label"]
@@ -150,8 +158,14 @@ def evaluate_variant(
             cleanup_interval=cleanup_interval,
             memory_log_interval=memory_log_interval,
             device=model_device,
-            log_prefix=score_fn.__name__,
+            log_prefix=active_label,
         )
+
+        if progress_log_path and progress_log_interval > 0 and sample_index % progress_log_interval == 0:
+            with Path(progress_log_path).open("a", encoding="utf-8") as handle:
+                handle.write(
+                    f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {active_label}: {sample_index}/{total_samples} samples\n"
+                )
 
     metrics = compute_metrics(y_true, y_pred, config["class_names"])
     mean_latency_ms = float(np.mean(latencies_ms) if latencies_ms else 0.0)
