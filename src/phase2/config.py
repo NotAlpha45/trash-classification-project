@@ -9,6 +9,7 @@ from typing import Any
 PHASE2_CONFIG: dict[str, Any] = {
     "k_vote": 10,
     "K_density": 50,
+    "K_density_sweep": [10, 25, 50, 75, 100],
     "alpha": 0.5,
     "alpha_sweep": [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0],
     "imbalance_ratios": [2, 3, 5, 10],
