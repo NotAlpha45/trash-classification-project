@@ -178,6 +178,55 @@ def idw(
     return _fuse_scores(image_scores, text_scores, class_names, alpha)
 
 
+def global_dnds_imbalance_simulated(
+    query_image: np.ndarray,
+    query_text: str,
+    image_collection,
+    text_collection,
+    config: dict,
+    alpha: float = 0.5,
+    **kwargs,
+) -> str:
+    """Predict class using global database priors as density correction. Simulates global density using only the retrieved neighbors to avoid needing full DB counts."""
+    k_vote = int(config["k_vote"])
+    k_density = int(config["K_density"])
+    epsilon = float(config["epsilon"])
+    class_names = list(config["class_names"])
+
+    image_results = kwargs.get("raw_image_results")
+    text_results = kwargs.get("raw_text_results")
+    if image_results is None or text_results is None:
+        image_results, text_results = _safe_query(
+            image_collection, text_collection, query_image, query_text, k_density
+        )
+
+    # Use the counts from the results themselves to avoid counting the full DB, when we are simulating with small subsets. In a real implementation, these would be replaced with explicit counts from the DB.
+    image_counts = Counter(
+        (m or {}).get("label") for m in (image_results.get("metadatas") or [[]])[0]
+    )
+    text_counts = Counter(
+        (m or {}).get("label") for m in (text_results.get("metadatas") or [[]])[0]
+    )
+
+    image_total = max(1, sum(image_counts.values()))
+    text_total = max(1, sum(text_counts.values()))
+
+    image_density = {
+        label: image_counts.get(label, 0) / image_total for label in class_names
+    }
+    text_density = {
+        label: text_counts.get(label, 0) / text_total for label in class_names
+    }
+
+    image_scores = _global_dnds_modality(
+        image_results, class_names, k_vote, epsilon, image_density
+    )
+    text_scores = _global_dnds_modality(
+        text_results, class_names, k_vote, epsilon, text_density
+    )
+    return _fuse_scores(image_scores, text_scores, class_names, alpha)
+
+
 def global_dnds(
     query_image: np.ndarray,
     query_text: str,
@@ -200,13 +249,10 @@ def global_dnds(
             image_collection, text_collection, query_image, query_text, k_density
         )
 
-    # Use the counts from the results themselves to avoid counting the full DB, when we are simulating with small subsets. In a real implementation, these would be replaced with explicit counts from the DB.
-    image_counts = Counter(
-        (m or {}).get("label") for m in (image_results.get("metadatas") or [[]])[0]
+    image_counts = kwargs.get("image_class_counts") or get_class_counts(
+        image_collection
     )
-    text_counts = Counter(
-        (m or {}).get("label") for m in (text_results.get("metadatas") or [[]])[0]
-    )
+    text_counts = kwargs.get("text_class_counts") or get_class_counts(text_collection)
 
     image_total = max(1, sum(image_counts.values()))
     text_total = max(1, sum(text_counts.values()))
