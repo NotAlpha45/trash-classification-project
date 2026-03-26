@@ -1,568 +1,428 @@
-# Multimodal Trash Classification: Image + Text Fusion
+# Multimodal Trash Classification: A Two-Phase Study (Supervised Fusion and Retrieval-Augmented Classification)
 
-A comprehensive deep learning project implementing **three complementary approaches** to trash bin classification: computer vision (MobileNetV3), natural language processing (DistilBERT), and multimodal fusion. This project demonstrates how combining visual and textual information can improve classification accuracy beyond single-modality approaches.
+This repository presents a two-phase research workflow for four-class trash-bin classification (`Black`, `Blue`, `Green`, `TTR`) using image and text signals.
 
-## 📋 Table of Contents
+- Phase 1 establishes supervised baselines: image-only, text-only, and multimodal fusion.
+- Phase 2 studies retrieval-augmented classification (RAC) using multimodal memory in ChromaDB, including robustness under class imbalance and memory growth.
+- A central objective is to evaluate multiple **vector heuristics** for retrieval scoring and aggregation (implemented as RAC variants).
 
-- [Overview](#overview)
-- [Dataset](#dataset)
-- [Model Architectures](#model-architectures)
-  - [Image Model (MobileNetV3)](#image-model-mobilenetv3)
-  - [Text Model (DistilBERT)](#text-model-distilbert)
-  - [Multimodal Fusion](#multimodal-fusion)
-- [Installation](#installation)
-- [Project Structure](#project-structure)
-- [Usage](#usage)
-- [Training](#training)
-- [Evaluation Metrics](#evaluation-metrics)
-- [Results](#results)
-- [Acknowledgments](#acknowledgments)
+The project is designed as an empirical pipeline: model building, retrieval design, controlled ablations, stress testing, and consolidated reporting.
 
-## 🎯 Overview
+## Table of Contents
 
-This project implements a **multimodal learning system** that classifies trash bin images into 4 categories using three different approaches:
+- [Abstract](#abstract)
+- [1. Research Context](#1-research-context)
+- [Contributions](#contributions)
+- [2. Dataset and Task](#2-dataset-and-task)
+- [3. Phase 1: Supervised Multimodal Baselines](#3-phase-1-supervised-multimodal-baselines)
+- [4. Phase 2: Retrieval-Augmented Classification](#4-phase-2-retrieval-augmented-classification)
+   - [4.3 Vector Heuristic Formulations](#43-vector-heuristic-formulations)
+   - [4.4 Phase 2 Experimental Protocols](#44-phase-2-experimental-protocols)
+- [5. Installation](#5-installation)
+- [6. Repository Structure](#6-repository-structure)
+- [7. Reproducibility Workflow](#7-reproducibility-workflow)
+- [8. Empirical Results](#8-empirical-results)
+  - [8.1 Phase 1 Results](#81-phase-1-results)
+  - [8.2 Phase 2 Results](#82-phase-2-results)
+   - [8.3 Interpretation Relative to Vector-Heuristic Evaluation](#83-interpretation-relative-to-vector-heuristic-evaluation)
+- [9. Main Artifacts](#9-main-artifacts)
+- [10. Technology Stack](#10-technology-stack)
+- [11. Limitations and Scope](#11-limitations-and-scope)
+- [12. Acknowledgments](#12-acknowledgments)
+- [13. License](#13-license)
 
-1. **Image Classification (MobileNetV3-Large)** - Computer vision approach using transfer learning from ImageNet
-2. **Text Classification (DistilBERT)** - NLP approach using image filenames as textual features
-3. **Multimodal Fusion** - Weighted logit-level fusion combining both image and text predictions
+## Abstract
 
-**Key Features:**
-- 🖼️ **Image Model:** Transfer learning with custom 3-layer classifier, aspect-ratio-preserving preprocessing
-- 📝 **Text Model:** DistilBERT fine-tuned on image filenames with optimized training configuration
-- 🔥 **Multimodal Fusion:** Weighted logit combination with alpha sensitivity analysis
-- 📊 Comprehensive evaluation metrics across all three approaches
-- 🎯 Alpha parameter tuning to find optimal image-text fusion weights
-- ⚡ Early stopping, learning rate scheduling, and gradient clipping
-- 📈 Detailed visualizations: confusion matrices, performance comparisons, sample predictions
+This repository presents a two-phase study of multimodal trash-bin classification. Phase 1 establishes supervised baselines (MobileNetV3 image model, DistilBERT text model, and weighted late fusion). Phase 2 evaluates retrieval-augmented classification as a vector-heuristic problem, where class decisions are produced from embedding-neighborhood evidence under multiple scoring rules. Beyond standard evaluation, we report controlled experiments on density normalization, minority-class imbalance, and continual-memory growth. The results indicate that density-aware heuristics are consistently more robust than unnormalized vote/distance aggregation, especially under severe imbalance and constrained retrieval memory.
 
-## 📊 Dataset
+## 1. Research Context
 
-**Source:** CVPR 2024 Trash Classification Dataset
+This work investigates two complementary questions:
 
-**Classes (4):**
-- Black
-- Blue
-- Green
-- TTR (Trash/Recycling/Recycle)
+1. How strong is multimodal supervised classification when image and text are fused at logit level?
+2. Can retrieval-augmented decision rules improve robustness and minority-class behavior under realistic memory constraints?
+3. Which vector heuristics (RAC scoring variants) produce the most reliable performance across standard, imbalanced, and continual-memory settings?
 
-**Dataset Split:**
-- Training Set
-- Validation Set
-- Test Set
+The repository therefore separates model-centric learning (Phase 1) from retrieval-centric reasoning and stress tests (Phase 2).
 
-**Image Properties:**
-- Variable dimensions (analyzed via EDA)
-- RGB color images
-- Aspect ratios preserved during preprocessing
+## Contributions
 
-**Text Properties:**
-- Image filenames used as textual features
-- Preprocessed and tokenized for transformer input
-- CSV format: `text` (filename), `label` (class)
+1. A complete two-phase multimodal pipeline spanning supervised fusion and retrieval-augmented inference.
+2. A unified implementation and comparison of vector heuristics (`majority_vote`, `idw`, `global_dnds`, `local_dnds`, `kde_dnds`, and `traditional` reference).
+3. A report-style evaluation suite including fixed/tuned protocols, database-level imbalance simulation, and continual-memory analysis.
+4. Reproducible experiment artifacts (JSON/CSV/figures) and notebook workflows for end-to-end regeneration.
 
-## 🏗️ Model Architectures
+## 2. Dataset and Task
 
-### Image Model (MobileNetV3)
+**Task:** 4-way classification of trash-bin class labels.
 
-**Base Model:**
-- **Backbone:** MobileNetV3-Large (pretrained on ImageNet)
-- **Input Size:** 224×224×3
-- **Preprocessing:** ResizeAndPad (maintains aspect ratio)
+**Classes:**
+- `Black`
+- `Blue`
+- `Green`
+- `TTR`
 
-**Custom Classifier Head (3 Layers):**
+**Image splits:**
+- `dataset/CVPR_2024_dataset_Train/`
+- `dataset/CVPR_2024_dataset_Val/`
+- `dataset/CVPR_2024_dataset_Test/`
 
-```
-Input (960) 
-   ↓
-FC1: Linear(960 → 512) + BatchNorm + ReLU + Dropout(0.3)
-   ↓
-FC2: Linear(512 → 256) + BatchNorm + ReLU + Dropout(0.2)
-   ↓
-FC3: Linear(256 → 4) [Output Layer]
-   ↓
-Softmax (for inference)
-```
+**Text splits:**
+- `dataset_text/train.csv`
+- `dataset_text/val.csv`
+- `dataset_text/test.csv`
 
-**Total Classifier Parameters:** ~625,924
+In this project, text features are derived from filename-like textual inputs and used as an additional modality.
 
-### Text Model (DistilBERT)
+## 3. Phase 1: Supervised Multimodal Baselines
 
-**Base Model:**
-- **Architecture:** DistilBERT-base-uncased
-- **Input:** Image filenames (tokenized, max length 64)
-- **Fine-tuning:** Full model fine-tuning with classification head
+Phase 1 establishes supervised reference systems.
 
-**Architecture:**
+### Models
 
-```
-Input (Filename Text)
-   ↓
-Tokenizer (distilbert-base-uncased)
-   ↓
-DistilBERT Transformer (6 layers, 768 hidden)
-   ↓
-Classification Head: Linear(768 → 4)
-   ↓
-Softmax (for inference)
-```
+- **Image model:** MobileNetV3-Large (transfer learning)
+- **Text model:** DistilBERT-base-uncased
+- **Fusion model:** weighted logit fusion
 
-**Total Parameters:** ~67M (66M pretrained + 1M fine-tuned)
+Fusion equation:
 
-### Multimodal Fusion
+$$
+W_{fused} = \alpha W_{text} + (1-\alpha)W_{image}
+$$
 
-**Fusion Strategy:** Weighted Logit-Level Fusion
+### Phase 1 notebooks
 
-```
-Image Model → Image Logits (W_image)
-                                           ↓
-Text Model  → Text Logits (W_text)   →   W_fused = α·W_text + (1-α)·W_image
-                                           ↓
-                                      Softmax → Final Predictions
-```
+1. `notebooks/phase1/image_model_experiment_mobilenetv3.ipynb`
+2. `notebooks/phase1/distilbert_text_model.ipynb`
+3. `notebooks/phase1/multimodal_fusion.ipynb`
 
-**Parameters:**
-- **α (alpha):** Fusion weight controlling text vs. image contribution
-  - α = 0.0: Image only
-  - α = 0.5: Equal weight
-  - α = 1.0: Text only
-- **Optimization:** Alpha sensitivity analysis to find optimal fusion weight
+These notebooks train/evaluate unimodal systems and quantify fusion gains.
 
-## 🚀 Installation
+## 4. Phase 2: Retrieval-Augmented Classification
+
+Phase 2 introduces RAC over a multimodal retrieval database.
+
+In this project, the RAC techniques are treated as **vector heuristics**: algorithmic rules that convert retrieved embedding neighborhoods into final class decisions.
+
+### 4.1 RAC overview
+
+- Build persistent image/text collections in ChromaDB.
+- Retrieve nearest neighbors for both modalities.
+- Aggregate evidence via multiple scoring rules.
+
+Implemented scoring variants:
+
+- `majority_vote`
+- `idw`
+- `global_dnds`
+- `local_dnds`
+- `kde_dnds`
+- `traditional` (reference baseline)
+
+### 4.2 Default experiment configuration
+
+From `src/phase2/config.py`:
+
+- `k_vote = 10`
+- `K_density = 50`
+- `K_density_sweep = [10, 25, 50, 75, 100]`
+- `alpha = 0.5`
+- `alpha_sweep = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0]`
+- `imbalance_ratios = [2, 3, 5, 10]`
+- `kde_bandwidth = 0.5`
+- `kde_bandwidth_sweep = [0.1, 0.25, 0.5, 1.0]`
+
+### 4.3 Vector Heuristic Formulations
+
+Let $\mathcal{N}^{(m)}_k(q)$ denote the top-$k$ neighbors retrieved for query $q$ in modality $m \in \{I, T\}$ (image/text), with distances $d_i^{(m)}$, and let $\epsilon > 0$ be a small stabilizer.
+
+Notation summary:
+
+| Symbol | Meaning |
+|---|---|
+| $q$ | query sample |
+| $m \in \{I, T\}$ | modality (image or text) |
+| $\mathcal{N}^{(m)}_k(q)$ | top-$k$ neighbors of $q$ in modality $m$ |
+| $d_i^{(m)}$ | retrieval distance of neighbor $i$ |
+| $y_i$ | class label of neighbor $i$ |
+| $k_{vote}$ | voting/IDW neighborhood size |
+| $K_{density}$ | local density neighborhood size |
+| $\rho_m(c)$ | global class density in modality $m$ |
+| $\rho_m^{local}(c)$ | local class density around query |
+| $\tilde{\rho}_m(c)$ | KDE-smoothed class density |
+| $h$ | KDE bandwidth |
+| $\alpha$ | image-text fusion weight |
+| $\epsilon$ | numerical stability constant |
+
+Phase 2 RAC fusion uses:
+
+$$
+S(c) = \alpha S_I(c) + (1-\alpha)S_T(c), \quad \hat{y} = \arg\max_c S(c)
+$$
+
+where $S_I(c)$ and $S_T(c)$ are class scores derived from image and text retrieval, respectively.
+
+1. Majority Vote
+
+$$
+S_m(c) = \sum_{i \in \mathcal{N}^{(m)}_{k_{vote}}(q)} \mathbf{1}[y_i = c]
+$$
+
+2. Inverse Distance Weighting (IDW)
+
+$$
+S_m(c) = \sum_{i \in \mathcal{N}^{(m)}_{k_{vote}}(q),\, y_i=c} \frac{1}{d_i^{(m)} + \epsilon}
+$$
+
+3. Global DNDS
+
+Using global class density $\rho_m(c)$ from database counts:
+
+$$
+\rho_m(c) = \frac{N_m(c)}{\sum_{c'} N_m(c')}, \quad
+S_m^{global}(c) = \frac{\sum_{i \in \mathcal{N}^{(m)}_{k_{vote}}(q),\, y_i=c} \frac{1}{d_i^{(m)} + \epsilon}}{\rho_m(c)}
+$$
+
+4. Local DNDS
+
+Using local neighborhood density from top-$K_{density}$ neighbors:
+
+$$
+\rho_m^{local}(c) = \frac{\#\{i \in \mathcal{N}^{(m)}_{K_{density}}(q): y_i=c\}}{K_{density}}, \quad
+S_m^{local}(c) = \frac{\sum_{i \in \mathcal{N}^{(m)}_{k_{vote}}(q),\, y_i=c} \frac{1}{d_i^{(m)} + \epsilon}}{\rho_m^{local}(c)}
+$$
+
+5. KDE-DNDS
+
+Replacing local frequency with Gaussian KDE class density (bandwidth $h$):
+
+$$
+   ilde{\rho}_m(c) = \sum_{j: y_j=c} \exp\left(-\frac{(d_j^{(m)})^2}{2h^2}\right), \quad
+S_m^{kde}(c) = \frac{\sum_{i \in \mathcal{N}^{(m)}_{k_{vote}}(q),\, y_i=c} \frac{1}{d_i^{(m)} + \epsilon}}{\tilde{\rho}_m(c)}
+$$
+
+6. Traditional reference
+
+Phase 1 model logits are combined as a non-retrieval baseline and evaluated under the same Phase 2 test protocol.
+
+### 4.4 Phase 2 Experimental Protocols
+
+The Phase 2 study includes four experiments.
+
+1. Standard RAC evaluation (`02_evaluation.ipynb`)
+- Evaluate all heuristics on a fixed test split.
+- Sweep/tune `alpha`, `K_density`, and KDE bandwidth.
+- Report accuracy, macro/weighted F1, per-class precision/recall/F1, confusion matrix, and latency.
+
+2. Fixed-alpha evaluation (`02.1_evaluation.ipynb`)
+- Repeat evaluation with alpha tuning disabled.
+- Assess whether heuristic ranking remains stable under fixed fusion weighting.
+
+3. Imbalance stress test (`03_imbalance_experiment.ipynb`)
+- Build ratio-specific imbalanced DBs by retaining majority classes and subsampling minority classes.
+- For ratio $r$, minority target per class is:
+
+$$
+n_{minority}(c) = \max\left(1, \left\lfloor \frac{\min_{c' \in \mathcal{C}_{maj}} N(c')}{r} \right\rfloor\right)
+$$
+
+- Evaluate heuristics at $r \in \{2,3,5,10\}$ and quantify minority robustness.
+
+4. Continual-memory experiment (`04_continual_learning.ipynb`)
+- Evaluate performance as retrieval memory grows from 10% to 100%.
+- For each fraction $p \in \{0.1,0.2,\dots,1.0\}$, construct the corresponding DB subset and re-evaluate heuristics.
+- Analyze trend behavior (improvement, saturation, stability) as memory increases.
+
+### 4.5 Phase 2 notebooks
+
+1. `notebooks/phase2/01_db_population.ipynb`
+   - Populates `chroma_db/` collections from train/val data.
+2. `notebooks/phase2/02_evaluation.ipynb`
+   - RAC evaluation with alpha tuning.
+3. `notebooks/phase2/02.1_evaluation.ipynb`
+   - RAC evaluation with fixed alpha (no sweep).
+4. `notebooks/phase2/03_imbalance_experiment.ipynb`
+   - Database-level minority subsampling at controlled ratios.
+5. `notebooks/phase2/04_continual_learning.ipynb`
+   - Performance as retrieval memory grows.
+6. `notebooks/phase2/05_results_summary.ipynb`
+   - Regenerates final figures/tables from saved artifacts.
+
+## 5. Installation
 
 ### Prerequisites
-- Python 3.12 or higher
-- CUDA-capable GPU (optional, but recommended)
-- [uv](https://github.com/astral-sh/uv) package manager
+
+- Python 3.12+
+- `uv` package manager
+- CUDA-capable GPU (optional but recommended)
 
 ### Setup
 
-1. **Clone the repository:**
+1. Clone repository
+
 ```bash
 git clone https://github.com/NotAlpha45/trash-classification-project.git
 cd trash-classification-project
 ```
 
-2. **Install dependencies using uv:**
-
-If you are starting with the `pyptoject.toml` file, then 
+2. Install dependencies
 
 ```bash
 uv sync
 ```
 
-If you are starting a new development bundle with your own configuration files:
+3. Verify runtime
 
 ```bash
-# Install PyTorch with CUDA 13.0 support
-uv add torch torchvision --index https://download.pytorch.org/whl/cu130 --index-strategy unsafe-best-match
-
-# Install transformers for text model
-uv add transformers --index-strategy unsafe-best-match
-
-# Install other dependencies
-uv add scikit-learn matplotlib seaborn pillow pandas
+uv run python -c "import torch; print(torch.__version__); print(torch.cuda.is_available())"
 ```
 
-3. **Verify installation:**
-```bash
-uv run python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}')"
-```
+## 6. Repository Structure
 
-## 📁 Project Structure
-
-```
+```text
 trash-classification-project/
 ├── notebooks/
-│   ├── image_model_experiment_mobilenetv3.ipynb  # Image classification (MobileNetV3)
-│   ├── distilbert_text_model.ipynb               # Text classification (DistilBERT)
-│   └── multimodal_fusion.ipynb                   # Multimodal fusion (Image + Text)
+│   ├── phase1/
+│   │   ├── image_model_experiment_mobilenetv3.ipynb
+│   │   ├── distilbert_text_model.ipynb
+│   │   └── multimodal_fusion.ipynb
+│   └── phase2/
+│       ├── 01_db_population.ipynb
+│       ├── 02_evaluation.ipynb
+│       ├── 02.1_evaluation.ipynb
+│       ├── 03_imbalance_experiment.ipynb
+│       ├── 04_continual_learning.ipynb
+│       └── 05_results_summary.ipynb
+├── src/phase2/
+│   ├── config.py
+│   ├── data_utils.py
+│   ├── db_client.py
+│   ├── embedders.py
+│   ├── evaluation.py
+│   ├── gpu_utils.py
+│   ├── imbalance.py
+│   ├── scoring.py
+│   ├── traditional.py
+│   └── visualization.py
 ├── dataset/
-│   ├── CVPR_2024_dataset_Train/                  # Training images
-│   ├── CVPR_2024_dataset_Val/                    # Validation images
-│   └── CVPR_2024_dataset_Test/                   # Test images
-├── dataset_text/                                  # Text dataset (CSV files)
-│   ├── train.csv
-│   ├── val.csv
-│   └── test.csv
-├── models/                                        # Image model checkpoints
-│   ├── mobilenetv3_best.pth
-│   ├── mobilenetv3_epoch_*.pth
-│   ├── training_history.png
-│   └── test_metrics.txt
-├── text_models/                                   # Text model checkpoints
-│   ├── distilbert_best.pth
-│   ├── distilbert_epoch_*.pth
-│   └── multimodal_*.png                          # Fusion visualizations
-├── pyproject.toml                                 # Project dependencies
-└── README.md                                      # This file
+├── dataset_text/
+├── models/
+├── text_models/
+├── chroma_db/
+├── chroma_db_continual/
+├── results/phase2/
+├── figures/phase2/
+├── pyproject.toml
+└── README.md
 ```
 
-## 💻 Usage
+## 7. Reproducibility Workflow
 
-### Training the Models
+For full regeneration of Phase 2 artifacts, run notebooks in this order:
 
-#### 1. Image Model (MobileNetV3)
+1. `notebooks/phase2/01_db_population.ipynb`
+2. `notebooks/phase2/02_evaluation.ipynb` (or `02.1_evaluation.ipynb` for fixed-alpha protocol)
+3. `notebooks/phase2/03_imbalance_experiment.ipynb`
+4. `notebooks/phase2/04_continual_learning.ipynb`
+5. `notebooks/phase2/05_results_summary.ipynb`
+
+Launch Jupyter:
 
 ```bash
-jupyter notebook notebooks/image_model_experiment_mobilenetv3.ipynb
+uv run jupyter notebook
 ```
 
-#### 2. Text Model (DistilBERT)
-
-```bash
-jupyter notebook notebooks/distilbert_text_model.ipynb
-```
-
-#### 3. Multimodal Fusion
-
-```bash
-jupyter notebook notebooks/multimodal_fusion.ipynb
-```
-
-### Loading Pre-trained Models
-
-```python
-from pathlib import Path
-import torch
-
-# Load image model
-image_checkpoint = torch.load("models/mobilenetv3_best.pth")
-image_model.load_state_dict(image_checkpoint["model_state_dict"])
-
-# Load text model
-text_checkpoint = torch.load("text_models/distilbert_best.pth")
-text_model.load_state_dict(text_checkpoint["model_state_dict"])
-```
-
-### Making Predictions
-
-#### Single Image Prediction
-```python
-# Image model only
-result = predict_single_image(image_model, image_tensor)
-print(f"Predicted class: {result['predicted_class_name']}")
-
-# Text model only
-result = predict_single_text(text_model, filename, tokenizer)
-print(f"Predicted class: {result['class_name']}")
-
-# Multimodal fusion
-result = predict_multimodal(
-    image_path=image_path,
-    image_model=image_model,
-    text_model=text_model,
-    tokenizer=tokenizer,
-    transform=transform,
-    device=device,
-    class_names=class_names,
-    alpha=0.5  # Fusion weight
-)
-print(f"Image prediction: {result['image_prediction']}")
-print(f"Text prediction: {result['text_prediction']}")
-print(f"Fused prediction: {result['fused_prediction']}")
-```
-
-## 🎓 Training
-
-### Image Model Hyperparameters
-
-| Parameter | Value |
-|-----------|-------|
-| Epochs | 50 (with early stopping) |
-| Batch Size | 32 |
-| Learning Rate (Classifier) | 0.001 |
-| Learning Rate (Backbone) | 0.0001 |
-| Optimizer | AdamW |
-| Weight Decay | 1e-4 |
-| Scheduler | ReduceLROnPlateau |
-| Early Stopping Patience | 15 epochs |
-
-**Data Augmentation (Training Only):**
-- Random Resized Crop (scale: 0.8-1.0)
-- Random Horizontal Flip (p=0.5)
-- Random Rotation (±15°)
-- Color Jitter (brightness, contrast, saturation, hue)
-- Random Affine Translation (±10%)
-
-### Text Model Hyperparameters
-
-| Parameter | Value |
-|-----------|-------|
-| Epochs | 15 (with early stopping) |
-| Batch Size | 64 |
-| Learning Rate | 3e-5 |
-| Optimizer | AdamW |
-| Weight Decay | 0.01 |
-| Warmup Ratio | 0.1 (10% of total steps) |
-| Gradient Clipping | Max norm 1.0 |
-| Early Stopping Patience | 4 epochs |
-| Max Sequence Length | 64 tokens |
-
-**Key Optimizations:**
-- Warmup learning rate schedule for stable training
-- Gradient clipping to prevent exploding gradients
-- Higher batch size (64) for faster convergence on simple text features
-- Lower epoch count (15-25 sufficient for filename classification)
-
-### Multimodal Fusion Configuration
-
-| Parameter | Value |
-|-----------|-------|
-| Fusion Method | Weighted logit combination |
-| Alpha (α) | 0.60 (optimal from sensitivity analysis) |
-| Alpha Range Tested | [0.0, 0.1, 0.2, ..., 1.0] |
-| Evaluation Metric | Accuracy & F1 (weighted) |
-| Secondary Metric | Inference Time |
-
-**Fusion Formula:**
-```
-W_fused = α · W_text + (1 - α) · W_image
-Predictions = softmax(W_fused)
-```
-
-### Loss Functions
-- **Image Model:** CrossEntropyLoss (with optional class weights)
-- **Text Model:** CrossEntropyLoss
-- **Fusion:** Inference only (no training)
-
-## 📈 Evaluation Metrics
-
-The models are evaluated using comprehensive metrics across all three approaches:
-
-### Core Metrics
-
-1. **Accuracy** - Overall classification accuracy
-2. **Macro F1 Score** - Balanced performance across all classes (handles class imbalance)
-3. **Weighted F1 Score** - F1 weighted by class support
-4. **Per-class Precision & Recall** - Individual class performance
-5. **Confusion Matrix** - Visual heatmap of predictions vs. ground truth
-6. **Inference Time** - Average time per sample (milliseconds)
-
-### Evaluation Functions
-
-#### Image Model
-```python
-metrics = evaluate_model(
-    model=image_model,
-    dataloader=test_loader,
-    class_names=class_names,
-    device=device,
-    plot_confusion_matrix=True
-)
-```
-
-#### Text Model
-```python
-results = evaluate_model(
-    model=text_model,
-    test_dataloader=test_loader,
-    device=device,
-    class_names=class_names
-)
-```
-
-#### Multimodal Fusion
-```python
-results = evaluate_multimodal(
-    image_model=image_model,
-    text_model=text_model,
-    dataloader=test_loader,
-    device=device,
-    alpha=0.5  # Fusion weight
-)
-```
-
-### Performance Comparison
-
-The multimodal fusion notebook generates comprehensive comparisons:
-- Side-by-side confusion matrices (Image | Text | Fused)
-- Performance bar charts (Accuracy & F1 scores)
-- Per-class classification reports
-- Alpha sensitivity analysis (finding optimal fusion weight)
-- Sample prediction visualizations with all three models
-
-## 🏆 Results
-
-### Test Set Performance
-
-| Model | Accuracy | F1 (Macro) | F1 (Weighted) | Inference Time |
-|-------|----------|------------|---------------|----------------|
-| **Image Only** (MobileNetV3) | 72.16% | 0.7150 | 0.7208 | 0.27 ms/sample |
-| **Text Only** (DistilBERT) | 77.23% | 0.7711 | 0.7735 | 1.15 ms/sample |
-| **Multimodal Fusion** (α=0.60) | **82.16%** | **0.8177** | **0.8212** | 1.43 ms/sample |
-
-### Per-Class Performance (F1-Score)
-
-| Class | Image Model | Text Model | Fused Model |
-|-------|-------------|------------|-------------|
-| **Black** | 0.5812 | 0.6491 | **0.7141** |
-| **Blue** | 0.7371 | 0.7501 | **0.8220** |
-| **Green** | 0.8334 | 0.8833 | **0.9171** |
-| **TTR** | 0.7084 | 0.8017 | **0.8177** |
-
-### Detailed Per-Class Metrics
-
-**Image Model (MobileNetV3):**
-- Black: Precision=0.6075, Recall=0.5571, F1=0.5812
-- Blue: Precision=0.7008, Recall=0.7773, F1=0.7371
-- Green: Precision=0.8558, Recall=0.8122, F1=0.8334
-- TTR: Precision=0.7168, Recall=0.7001, F1=0.7084
-
-**Text Model (DistilBERT):**
-- Black: Precision=0.6162, Recall=0.6857, F1=0.6491
-- Blue: Precision=0.7618, Recall=0.7388, F1=0.7501
-- Green: Precision=0.8679, Recall=0.8993, F1=0.8833
-- TTR: Precision=0.8402, Recall=0.7666, F1=0.8017
-
-**Fused Model (α=0.60):**
-- Black: Precision=0.7257, Recall=0.7029, F1=0.7141
-- Blue: Precision=0.7913, Recall=0.8552, F1=0.8220
-- Green: Precision=0.9189, Recall=0.9154, F1=0.9171
-- TTR: Precision=0.8501, Recall=0.7876, F1=0.8177
-
-### Key Findings
-
-- **Best Single Model:** Text (DistilBERT) at 77.23% accuracy
-- **Fusion Improvement:** **+4.92%** over best single model (77.23% → 82.16%)
-- **Optimal Alpha:** **α = 0.60** (60% text weight, 40% image weight)
-- **Overall Winner:** Multimodal fusion achieves **82.16% accuracy**, outperforming both individual models
-
-### Performance Trade-offs
-
-**Accuracy vs. Speed:**
-- **Image model:** Fastest inference (0.27 ms/sample) but lowest accuracy (72.16%)
-- **Text model:** Moderate speed (1.15 ms/sample) with good accuracy (77.23%)
-- **Fusion:** Best accuracy (82.16%) at 1.43 ms/sample (5.3× slower than image-only, 1.2× slower than text-only)
-
-**Key Insights:**
-1. **Complementary Strengths:** Fusion leverages visual patterns (image) and naming conventions (text)
-2. **Class Performance:** Green bins achieve highest F1 (0.9171), Black bins most challenging (0.7141)
-3. **Practical Deployment:** For real-time applications, text model offers best accuracy/speed balance (77.23% at 1.15 ms)
-4. **Maximum Accuracy:** Fusion model recommended when accuracy is critical (+4.92% gain worth the 1.43 ms latency)
-
-### Visualizations Generated
-
-All notebooks generate detailed visualizations saved to respective model directories:
-
-**Image Model:** (`models/`)
-- Training history plots (loss, accuracy, learning rate curves)
-- Confusion matrix heatmap
-- Sample predictions with probability distributions
-
-**Text Model:** (`text_models/`)
-- Training history plots
-- Confusion matrix heatmap
-- Sample predictions from test set
-
-**Multimodal Fusion:** (`figures/`)
-- `multimodal_confusion_matrices.png` - Side-by-side comparison
-- `multimodal_performance_comparison.png` - Bar chart comparison
-- `alpha_sensitivity_analysis.png` - Fusion weight optimization
-- `sample_predictions.png` - Visual comparison of all three models
-
-## 🔍 Key Features
-
-### 1. Image Model Innovations
-
-**Custom ResizeAndPad Transform:**
-Maintains aspect ratio while resizing images to prevent distortion:
-```python
-class ResizeAndPad(nn.Module):
-    """Resize to target size maintaining aspect ratio, then pad to square."""
-```
-
-**Prediction Output Options:**
-Get both raw logits and probability distributions:
-```python
-logits, probs = get_predictions(model, images, return_type='both')
-```
-
-**Checkpoint System:**
-- Saves best model based on validation accuracy
-- Periodic checkpoints every 5 epochs
-- Includes optimizer state for training resumption
-
-### 2. Text Model Innovations
-
-**Optimized Training Configuration:**
-- Warmup learning rate schedule for transformer stability
-- Gradient clipping to prevent exploding gradients
-- Fast convergence (15 epochs vs 50 for images)
-
-**Filename-Based Classification:**
-Leverages patterns in image filenames to extract class information without visual processing
-
-**Inference Functions:**
-```python
-# Get predictions with multiple return types
-get_predictions(model, texts, tokenizer, return_type='logits')  # Raw logits
-get_predictions(model, texts, tokenizer, return_type='probs')   # Probabilities
-get_predictions(model, texts, tokenizer, return_type='both')    # Both
-```
-
-### 3. Multimodal Fusion Innovations
-
-**Logit-Level Fusion:**
-Combines raw model outputs before softmax for better calibration than probability fusion
-
-**Alpha Sensitivity Analysis:**
-Automatically tests multiple fusion weights (α ∈ [0.0, 1.0]) to find optimal combination
-
-**Comprehensive Evaluation:**
-Side-by-side comparison of all three approaches with unified metrics
-
-**Visualization Suite:**
-Automatic generation of comparison plots, confusion matrices, and sample predictions
-
-## 🛠️ Technologies Used
-
-### Deep Learning Frameworks
-- **PyTorch** (2.10.0+) - Deep learning framework
-- **torchvision** (0.25.0+) - Computer vision utilities
-- **Transformers** (4.x) - HuggingFace library for NLP models
-
-### Models
-- **MobileNetV3-Large** - Efficient CNN architecture for image classification
-- **DistilBERT** - Lightweight transformer for text classification
-
-### Data & Evaluation
-- **scikit-learn** - Evaluation metrics and preprocessing
-- **pandas** - Text dataset management (CSV files)
-- **NumPy** - Numerical operations
-
-### Visualization
-- **matplotlib** - Plotting and visualizations
-- **seaborn** - Statistical visualizations and heatmaps
-- **PIL/Pillow** - Image processing
-
-## 📝 Acknowledgments
-
-- **MobileNetV3** architecture from [Searching for MobileNetV3](https://arxiv.org/abs/1905.02244)
-- **DistilBERT** from [DistilBERT, a distilled version of BERT](https://arxiv.org/abs/1910.01108)
-- **HuggingFace Transformers** library for pretrained NLP models
-- **CVPR 2024** dataset for trash classification
-- **University of Calgary** - ENSF617 Introduction to Machine Learning (Winter 2026)
-
-## 🎯 Learning Outcomes
-
-This project demonstrates:
-
-1. **Transfer Learning:** Leveraging pretrained models (ImageNet, BERT) for downstream tasks
-2. **Multimodal Learning:** Combining different data modalities (vision + language)
-3. **Model Fusion:** Weighted logit combination for ensemble predictions
-4. **Hyperparameter Optimization:** Finding optimal training configurations for different architectures
-5. **Evaluation & Analysis:** Comprehensive metrics, visualizations, and performance comparison
-6. **Production Considerations:** Checkpoint management, inference optimization, model deployment readiness
-
-## 📄 License
-
-This project is for educational purposes as part of ENSF617 coursework.
-
-## 👤 Author
-
-**NotAlpha45**
-- GitHub: [@NotAlpha45](https://github.com/NotAlpha45)
-
----
-
-**Note:** This project demonstrates advanced multimodal learning techniques combining computer vision and natural language processing. The fusion approach showcases how different modalities can complement each other, with the lightweight MobileNetV3 architecture making it suitable for deployment on resource-constrained devices while DistilBERT provides fast text-based inference.
+## 8. Empirical Results
+
+### 8.1 Phase 1 Results
+
+| Model | Accuracy | Macro F1 | Weighted F1 | Inference Time |
+|---|---:|---:|---:|---:|
+| Image Only (MobileNetV3) | 72.16% | 0.7150 | 0.7208 | 0.27 ms/sample |
+| Text Only (DistilBERT) | 77.23% | 0.7711 | 0.7735 | 1.15 ms/sample |
+| Multimodal Fusion (alpha = 0.60) | **82.16%** | **0.8177** | **0.8212** | 1.43 ms/sample |
+
+### 8.2 Phase 2 Results
+
+From `results/phase2/final_results_summary.csv` (fixed-alpha setting):
+
+| Variant | Accuracy | Macro F1 | TTR F1 |
+|---|---:|---:|---:|
+| majority_vote | 82.94% | 0.8236 | 0.8225 |
+| idw | 83.72% | 0.8319 | 0.8442 |
+| global_dnds | **85.25%** | **0.8481** | 0.8706 |
+| local_dnds | 82.18% | 0.8176 | 0.8345 |
+| kde_dnds | 85.23% | 0.8480 | **0.8716** |
+| traditional | 81.84% | 0.8137 | 0.8130 |
+
+#### Imbalance robustness (ratio 10:1)
+
+From `results/phase2/imbalance_summary.csv`:
+
+- `majority_vote` TTR F1: 0.5843
+- `idw` TTR F1: 0.6201
+- `global_dnds` TTR F1: 0.7651
+- `local_dnds` TTR F1: 0.6535
+- `kde_dnds` TTR F1: 0.7669
+
+Observation: density-aware global/KDE variants retain substantially stronger minority performance under severe scarcity.
+
+#### Continual-learning trend
+
+From `results/phase2/continual_learning_results.json`:
+
+- Example (`global_dnds`): macro F1 improves from 0.7679 (10% memory) to 0.8481 (100% memory).
+
+This supports the expected benefit of retrieval memory growth on decision quality.
+
+### 8.3 Interpretation Relative to Vector-Heuristic Evaluation
+
+- In full-memory evaluation, density-normalized heuristics (`global_dnds`, `kde_dnds`) deliver the best aggregate metrics.
+- In severe imbalance settings, density-aware heuristics preserve minority performance substantially better than vote-only or plain IDW rules.
+- In continual-memory tests, macro F1 rises as memory size increases, indicating that heuristic reliability depends on richer neighborhood evidence.
+
+Overall, the experiments support the core research objective: vector heuristics with explicit density normalization are more robust under shift and scarcity than unnormalized neighborhood aggregation.
+
+## 9. Main Artifacts
+
+### Phase 1 artifacts
+
+- `models/mobilenetv3_best.pth`
+- `text_models/distilbert_best.pth`
+- model-specific visualizations under `models/`, `text_models/`, and `figures/`
+
+### Phase 2 artifacts
+
+- `results/phase2/evaluation_results.json`
+- `results/phase2/evaluation_no_alpha_results.json`
+- `results/phase2/imbalance_results.json`
+- `results/phase2/continual_learning_results.json`
+- `results/phase2/final_results_summary.csv`
+- `figures/phase2/*.png`
+
+## 10. Technology Stack
+
+- PyTorch / Torchvision
+- HuggingFace Transformers
+- ChromaDB
+- NumPy / pandas / scikit-learn
+- Matplotlib / Seaborn
+- Jupyter Notebooks
+
+## 11. Limitations and Scope
+
+- Results reflect the current dataset and class taxonomy only.
+- Text modality is filename-based and may encode dataset-specific naming bias.
+- Retrieval sensitivity to embedding/checkpoint changes should be expected.
+- Further external validation is needed before deployment-level claims.
+
+## 12. Acknowledgments
+
+- MobileNetV3: *Searching for MobileNetV3* (Howard et al.)
+- DistilBERT: *DistilBERT, a distilled version of BERT* (Sanh et al.)
+- CVPR 2024 trash classification dataset
+- University of Calgary, ENSF617 (Winter 2026)
+
+## 13. License
+
+This repository is maintained for educational and coursework use.

@@ -6,7 +6,12 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .config import PHASE2_CONFIG, get_phase2_config
     from .data_utils import build_records_from_csv, resolve_image_path
-    from .db_client import get_class_counts, get_image_collection, get_persistent_client, get_text_collection
+    from .db_client import (
+        get_class_counts,
+        get_image_collection,
+        get_persistent_client,
+        get_text_collection,
+    )
     from .embedders import ImageEmbedder, TextEmbedder
     from .gpu_utils import (
         clear_gpu_memory,
@@ -17,7 +22,12 @@ if TYPE_CHECKING:
         print_gpu_memory,
         should_use_half_precision,
     )
-    from .evaluation import compute_metrics, evaluate_variant, load_results, save_results
+    from .evaluation import (
+        compute_metrics,
+        evaluate_variant,
+        load_results,
+        save_results,
+    )
     from .evaluation import (
         save_alpha_sweep_csv,
         save_continual_summary_csv,
@@ -26,7 +36,15 @@ if TYPE_CHECKING:
         save_predictions_csv,
     )
     from .imbalance import infer_class_groups, simulate_imbalance
-    from .scoring import global_dnds, idw, kde_dnds, local_dnds, majority_vote, traditional
+    from .scoring import (
+        global_dnds,
+        global_dnds_imbalance_simulated,
+        idw,
+        kde_dnds,
+        local_dnds,
+        majority_vote,
+        traditional,
+    )
     from .traditional import load_phase1_traditional_components
     from .visualization import (
         plot_alpha_sensitivity,
@@ -60,6 +78,7 @@ _SYMBOL_TO_MODULE = {
     "majority_vote": ".scoring",
     "idw": ".scoring",
     "global_dnds": ".scoring",
+    "global_dnds_imbalance_simulated": ".scoring",
     "local_dnds": ".scoring",
     "kde_dnds": ".scoring",
     "traditional": ".scoring",
@@ -96,6 +115,7 @@ def __getattr__(name: str):
     globals()[name] = value
     return value
 
+
 __all__ = [
     "PHASE2_CONFIG",
     "get_phase2_config",
@@ -117,6 +137,7 @@ __all__ = [
     "majority_vote",
     "idw",
     "global_dnds",
+    "global_dnds_imbalance_simulated",
     "local_dnds",
     "kde_dnds",
     "traditional",
