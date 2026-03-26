@@ -188,7 +188,7 @@ $$
 Using local neighborhood density from top-$K_{density}$ neighbors:
 
 $$
-\rho_m^{local}(c) = \frac{\#\{i \in \mathcal{N}^{(m)}_{K_{density}}(q): y_i=c\}}{K_{density}}, \quad
+\rho_m^{local}(c) = \frac{\|\{i \in \mathcal{N}^{(m)}_{K_{density}}(q): y_i=c\}\|}{K_{density}}, \quad
 S_m^{local}(c) = \frac{\sum_{i \in \mathcal{N}^{(m)}_{k_{vote}}(q),\, y_i=c} \frac{1}{d_i^{(m)} + \epsilon}}{\rho_m^{local}(c)}
 $$
 
@@ -197,7 +197,7 @@ $$
 Replacing local frequency with Gaussian KDE class density (bandwidth $h$):
 
 $$
-   ilde{\rho}_m(c) = \sum_{j: y_j=c} \exp\left(-\frac{(d_j^{(m)})^2}{2h^2}\right), \quad
+   \tilde{\rho}_m(c) = \sum_{j: y_j=c} \exp\left(-\frac{(d_j^{(m)})^2}{2h^2}\right), \quad
 S_m^{kde}(c) = \frac{\sum_{i \in \mathcal{N}^{(m)}_{k_{vote}}(q),\, y_i=c} \frac{1}{d_i^{(m)} + \epsilon}}{\tilde{\rho}_m(c)}
 $$
 
