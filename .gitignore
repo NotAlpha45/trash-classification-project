@@ -6,6 +6,8 @@ AGENT_INSTRUCTIONS.md
 /text_models
 chroma_db/
 chroma_db_continual/
+chroma_db_imbalanced/
 results/phase2/
 figures/phase2/
 src/phase2/__pycache__/
+phase2_refactor_plan.md
