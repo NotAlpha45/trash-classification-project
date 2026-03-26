@@ -10,8 +10,45 @@ import numpy as np
 import seaborn as sns
 
 
+VARIANT_PALETTE = [
+    "#0072B2",
+    "#D55E00",
+    "#009E73",
+    "#CC79A7",
+    "#E69F00",
+    "#56B4E9",
+    "#000000",
+    "#F0E442",
+]
+VARIANT_MARKERS = ["o", "s", "^", "D", "P", "X", "v", "*"]
+VARIANT_LINESTYLES = [
+    "-",
+    "--",
+    "-.",
+    ":",
+    (0, (5, 1)),
+    (0, (3, 1, 1, 1)),
+    (0, (1, 1)),
+    (0, (3, 5, 1, 5)),
+]
+
+
 def _ensure_dir(path: str) -> None:
     Path(path).mkdir(parents=True, exist_ok=True)
+
+
+def _build_variant_styles(variant_names: list[str]) -> dict[str, dict[str, Any]]:
+    """Create stable color/marker/linestyle mappings for a list of variants."""
+    names = sorted(variant_names)
+    palette = VARIANT_PALETTE if VARIANT_PALETTE else ["#1f77b4"]
+    styles = {}
+    for idx, name in enumerate(names):
+        styles[name] = {
+            "color": palette[idx % len(palette)],
+            "marker": VARIANT_MARKERS[idx % len(VARIANT_MARKERS)],
+            "linestyle": VARIANT_LINESTYLES[idx % len(VARIANT_LINESTYLES)],
+        }
+    return styles
 
 
 def plot_scoring_comparison(evaluation_results: dict[str, Any], save_path: str):
@@ -23,8 +60,11 @@ def plot_scoring_comparison(evaluation_results: dict[str, Any], save_path: str):
         variants.append(variant)
         macro_f1.append(metrics.get("macro_f1", 0.0))
 
+    style_map = _build_variant_styles(variants)
+    bar_colors = [style_map[name]["color"] for name in variants]
+
     fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(x=variants, y=macro_f1, ax=ax, palette="viridis")
+    sns.barplot(x=variants, y=macro_f1, ax=ax, palette=bar_colors)
     ax.set_title("Macro F1 by Scoring Variant")
     ax.set_ylabel("Macro F1")
     ax.set_xlabel("Variant")
@@ -40,12 +80,33 @@ def plot_minority_f1_vs_imbalance(imbalance_results: dict[str, Any], save_path: 
     _ensure_dir(str(Path(save_path).parent))
     ratios = imbalance_results.get("ratios", [])
 
+    variant_names = list(imbalance_results.get("variants", {}).keys())
+    style_map = _build_variant_styles(variant_names)
+
     fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
     for idx, minority_label in enumerate(["Green", "TTR"]):
         ax = axes[idx]
         for variant, per_ratio in imbalance_results.get("variants", {}).items():
-            values = [per_ratio.get(str(r), {}).get("per_class_f1", {}).get(minority_label, 0.0) for r in ratios]
-            ax.plot(ratios, values, marker="o", label=variant)
+            values = [
+                per_ratio.get(str(r), {})
+                .get("per_class_f1", {})
+                .get(minority_label, 0.0)
+                for r in ratios
+            ]
+            style = style_map.get(
+                variant,
+                {"color": "#1f77b4", "marker": "o", "linestyle": "-"},
+            )
+            ax.plot(
+                ratios,
+                values,
+                marker=style["marker"],
+                linestyle=style["linestyle"],
+                color=style["color"],
+                linewidth=2.4,
+                markersize=7,
+                label=variant,
+            )
         ax.set_title(f"{minority_label} F1 vs Imbalance")
         ax.set_xlabel("Imbalance Ratio (majority:minority)")
         ax.set_ylabel("F1")
@@ -68,25 +129,34 @@ def plot_alpha_sensitivity(alpha_results: dict[str, Any], save_path: str):
       }
     """
     _ensure_dir(str(Path(save_path).parent))
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(9, 5))
+    style_map = _build_variant_styles(["local_dnds", "kde_dnds"])
 
     if "local_dnds" in alpha_results or "kde_dnds" in alpha_results:
         local = alpha_results.get("local_dnds", {})
         kde = alpha_results.get("kde_dnds", {})
         if local:
+            local_style = style_map["local_dnds"]
             ax.plot(
                 local.get("alphas", []),
                 local.get("macro_f1", []),
-                marker="o",
-                linewidth=2,
+                marker=local_style["marker"],
+                linestyle=local_style["linestyle"],
+                color=local_style["color"],
+                linewidth=2.4,
+                markersize=7,
                 label="local_dnds",
             )
         if kde:
+            kde_style = style_map["kde_dnds"]
             ax.plot(
                 kde.get("alphas", []),
                 kde.get("macro_f1", []),
-                marker="s",
-                linewidth=2,
+                marker=kde_style["marker"],
+                linestyle=kde_style["linestyle"],
+                color=kde_style["color"],
+                linewidth=2.4,
+                markersize=7,
                 label="kde_dnds",
             )
         ax.legend(loc="best")
@@ -94,7 +164,15 @@ def plot_alpha_sensitivity(alpha_results: dict[str, Any], save_path: str):
     else:
         alphas = alpha_results.get("alphas", [])
         values = alpha_results.get("macro_f1", [])
-        ax.plot(alphas, values, marker="o", linewidth=2)
+        ax.plot(
+            alphas,
+            values,
+            marker="o",
+            linestyle="-",
+            color="#0072B2",
+            linewidth=2.4,
+            markersize=7,
+        )
         ax.set_title("Alpha Sensitivity (local_dnds)")
 
     ax.set_xlabel("alpha")
@@ -113,7 +191,15 @@ def plot_kde_bandwidth_ablation(kde_bandwidth_results: dict[str, Any], save_path
     macro_f1 = kde_bandwidth_results.get("macro_f1", [])
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(bandwidths, macro_f1, marker="o", linewidth=2)
+    ax.plot(
+        bandwidths,
+        macro_f1,
+        marker="o",
+        linestyle="-",
+        color="#0072B2",
+        linewidth=2.4,
+        markersize=7,
+    )
     ax.set_title("KDE Bandwidth Ablation (kde_dnds)")
     ax.set_xlabel("bandwidth (h)")
     ax.set_ylabel("Macro F1")
@@ -129,16 +215,38 @@ def plot_continual_learning_curve(continual_results: dict[str, Any], save_path: 
     _ensure_dir(str(Path(save_path).parent))
     percents = continual_results.get("db_size_percent", [])
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(9, 5))
     variants = continual_results.get("variants")
     if isinstance(variants, dict) and variants:
+        style_map = _build_variant_styles(list(variants.keys()))
         for variant_name, payload in variants.items():
             macro_f1 = (payload or {}).get("macro_f1", [])
-            ax.plot(percents, macro_f1, marker="o", linewidth=2, label=variant_name)
+            style = style_map.get(
+                variant_name,
+                {"color": "#1f77b4", "marker": "o", "linestyle": "-"},
+            )
+            ax.plot(
+                percents,
+                macro_f1,
+                marker=style["marker"],
+                linestyle=style["linestyle"],
+                color=style["color"],
+                linewidth=2.4,
+                markersize=7,
+                label=variant_name,
+            )
         ax.legend(loc="best")
     else:
         macro_f1 = continual_results.get("macro_f1", [])
-        ax.plot(percents, macro_f1, marker="o", linewidth=2)
+        ax.plot(
+            percents,
+            macro_f1,
+            marker="o",
+            linestyle="-",
+            color="#0072B2",
+            linewidth=2.4,
+            markersize=7,
+        )
 
     ax.set_title("Continual Learning Curve")
     ax.set_xlabel("DB Size (%)")
@@ -168,7 +276,11 @@ def plot_confusion_matrices(
     axes_arr = np.atleast_1d(axes).ravel()
 
     for ax, variant in zip(axes_arr, variants):
-        matrix = evaluation_results.get("variants", {}).get(variant, {}).get("confusion_matrix")
+        matrix = (
+            evaluation_results.get("variants", {})
+            .get(variant, {})
+            .get("confusion_matrix")
+        )
         if matrix is None:
             matrix = np.zeros((len(class_names), len(class_names)))
         sns.heatmap(matrix, annot=True, fmt="g", cmap="Blues", cbar=False, ax=ax)
@@ -178,7 +290,7 @@ def plot_confusion_matrices(
         ax.set_xticklabels(class_names, rotation=45, ha="right")
         ax.set_yticklabels(class_names, rotation=0)
 
-    for ax in axes_arr[len(variants):]:
+    for ax in axes_arr[len(variants) :]:
         ax.axis("off")
 
     fig.tight_layout()
@@ -186,7 +298,9 @@ def plot_confusion_matrices(
     return fig
 
 
-def plot_phase2_vs_phase1(best_phase2_macro_f1: float, phase1_macro_f1: float, save_path: str):
+def plot_phase2_vs_phase1(
+    best_phase2_macro_f1: float, phase1_macro_f1: float, save_path: str
+):
     """Plot side-by-side bar chart comparing best Phase 2 variant to Phase 1."""
     _ensure_dir(str(Path(save_path).parent))
     labels = ["Phase 1 Fusion", "Phase 2 Best RAC"]
