@@ -153,14 +153,17 @@ def build_imbalanced_collections(
         except Exception:
             pass
 
+    image_embedding_function = getattr(source_image_collection, "_embedding_function", None)
+    text_embedding_function = getattr(source_text_collection, "_embedding_function", None)
+
     imb_image_col = client.create_collection(
         name=image_collection_name,
-        embedding_function=None,
+        embedding_function=image_embedding_function,
         metadata={"ratio": ratio, "type": "image", "seed": seed},
     )
     imb_text_col = client.create_collection(
         name=text_collection_name,
-        embedding_function=None,
+        embedding_function=text_embedding_function,
         metadata={"ratio": ratio, "type": "text", "seed": seed},
     )
 
