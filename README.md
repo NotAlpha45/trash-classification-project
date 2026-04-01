@@ -142,7 +142,7 @@ Notation summary:
 |---|---|
 | $q$ | query sample |
 | $m \in \{I, T\}$ | modality (image or text) |
-| $\mathcal{N}^{(m)}_k(q)$ | top-$k$ neighbors of $q$ in modality $m$ |
+| $\mathcal{N}^{(m)}_{k_{vote}}(q)$ | top-$k_{vote}$ neighbors of $q$ in modality $m$ |
 | $d_i^{(m)}$ | retrieval distance of neighbor $i$ |
 | $y_i$ | class label of neighbor $i$ |
 | $k_{vote}$ | voting/IDW neighborhood size |
